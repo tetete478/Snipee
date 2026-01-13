@@ -912,7 +912,7 @@ app.whenReady().then(() => {
     registerGlobalShortcuts();
   }, 500);
 
-  if (app.isPackaged) {
+  if (app.isPackaged && autoUpdater) {
     autoUpdater.checkForUpdatesAndNotify();
   }
 
