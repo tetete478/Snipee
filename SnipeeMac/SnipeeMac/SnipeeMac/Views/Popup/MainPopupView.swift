@@ -11,10 +11,16 @@ struct MainPopupView: View {
     
     private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
     
-    private var allItems: [HistoryItem] {
-        let pinned = clipboardService.history.filter { $0.isPinned }
-        let unpinned = Array(clipboardService.history.filter { !$0.isPinned }.prefix(15))
-        return pinned + unpinned
+    private var pinnedItems: [HistoryItem] {
+        clipboardService.history.filter { $0.isPinned }
+    }
+    
+    private var recentItems: [HistoryItem] {
+        Array(clipboardService.history.filter { !$0.isPinned }.prefix(5))
+    }
+    
+    private var totalSelectableCount: Int {
+        pinnedItems.count + recentItems.count + 4 // 4 action items
     }
     
     var body: some View {
@@ -54,13 +60,11 @@ struct MainPopupView: View {
                             Divider().padding(.vertical, 4)
                         }
                         
-                        // Recent history
-                        let pinnedCount = pinnedItems.count
-                        let unpinnedItems = clipboardService.history.filter { !$0.isPinned }
-                        if !unpinnedItems.isEmpty {
+                        // Recent history (max 5)
+                        if !recentItems.isEmpty {
                             MenuSection(title: "📝 履歴", theme: theme)
-                            ForEach(Array(unpinnedItems.prefix(15).enumerated()), id: \.element.id) { index, item in
-                                let globalIndex = pinnedCount + index
+                            ForEach(Array(recentItems.enumerated()), id: \.element.id) { index, item in
+                                let globalIndex = pinnedItems.count + index
                                 MenuItemRow(
                                     title: item.content.prefix(50).description,
                                     subtitle: "\(index + 1)",
@@ -71,12 +75,25 @@ struct MainPopupView: View {
                                 }
                                 .id(globalIndex)
                             }
+                            
+                            // Show all history link
+                            MenuItemRow(
+                                title: "すべての履歴を見る...",
+                                icon: "📋",
+                                isSelected: false,
+                                theme: theme
+                            ) {
+                                PopupWindowController.shared.hidePopup()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    PopupWindowController.shared.showPopup(type: .history)
+                                }
+                            }
                         }
                         
                         Divider().padding(.vertical, 4)
                         
                         // Actions
-                        let actionStartIndex = allItems.count
+                        let actionStartIndex = pinnedItems.count + recentItems.count
                         MenuSection(title: "⚙️ アクション", theme: theme)
                         
                         MenuItemRow(title: "スニペット編集", icon: "✏️", isSelected: selectedIndex == actionStartIndex, theme: theme) {
@@ -133,9 +150,7 @@ struct MainPopupView: View {
     }
     
     private func setupKeyboardHandler() {
-        let totalItems = allItems.count + 4 // 4 action items
-        
-        PopupWindowController.shared.onKeyDown = { keyCode in
+        PopupWindowController.shared.onKeyDown = { [self] keyCode in
             switch keyCode {
             case 126: // Up
                 if selectedIndex > 0 {
@@ -143,7 +158,7 @@ struct MainPopupView: View {
                 }
                 return true
             case 125: // Down
-                if selectedIndex < totalItems - 1 {
+                if selectedIndex < totalSelectableCount - 1 {
                     selectedIndex += 1
                 }
                 return true
@@ -154,10 +169,10 @@ struct MainPopupView: View {
                 // Number keys (101-109)
                 if keyCode >= 101 && keyCode <= 109 {
                     let num = Int(keyCode) - 100
-                    let pinnedCount = clipboardService.history.filter { $0.isPinned }.count
-                    let targetIndex = pinnedCount + num - 1
-                    if targetIndex < allItems.count {
-                        pasteItem(allItems[targetIndex])
+                    let targetIndex = pinnedItems.count + num - 1
+                    if targetIndex < pinnedItems.count + recentItems.count {
+                        let item = recentItems[num - 1]
+                        pasteItem(item)
                     }
                     return true
                 }
@@ -167,10 +182,13 @@ struct MainPopupView: View {
     }
     
     private func executeSelectedItem() {
-        let actionStartIndex = allItems.count
+        let actionStartIndex = pinnedItems.count + recentItems.count
         
-        if selectedIndex < allItems.count {
-            pasteItem(allItems[selectedIndex])
+        if selectedIndex < pinnedItems.count {
+            pasteItem(pinnedItems[selectedIndex])
+        } else if selectedIndex < actionStartIndex {
+            let recentIndex = selectedIndex - pinnedItems.count
+            pasteItem(recentItems[recentIndex])
         } else {
             switch selectedIndex - actionStartIndex {
             case 0: // スニペット編集
