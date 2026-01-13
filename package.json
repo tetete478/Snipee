@@ -1,0 +1,116 @@
+{
+  "name": "snipee",
+  "version": "1.9.99",
+  "description": "Mac/Windows対応のクリップボード管理ツール",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tetete478/snipee.git"
+  },
+  "main": "app/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --debug",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "electron-builder --win --mac",
+    "publish": "electron-builder --mac --win --publish always",
+    "publish:win": "electron-builder --win --publish always",
+    "publish:mac": "electron-builder --mac --publish always"
+  },
+  "keywords": [
+    "clipboard",
+    "snippets",
+    "productivity",
+    "clipy"
+  ],
+  "author": "Teruya",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "docx": "^9.5.1",
+    "dotenv": "^17.2.3",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.7.3",
+    "googleapis": "^170.0.0",
+    "keytar": "^7.9.0",
+    "koffi": "^2.14.1",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^3.1.1",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.snipee.app",
+    "productName": "Snipee",
+    "publish": {
+      "provider": "github",
+      "owner": "tetete478",
+      "repo": "snipee"
+    },
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "app/**/*",
+      "package.json",
+      "!app/**/*.map"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": {
+        "teamId": "F8KR53ZN3Y"
+      }
+    },
+    "dmg": {
+      "background": "build/dmg-background.png",
+      "contents": [
+        {
+          "x": 170,
+          "y": 190
+        },
+        {
+          "x": 370,
+          "y": 190,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "nsis": {
+      "oneClick": true,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "allowElevation": true,
+      "include": "build/installer.nsh",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp"
+    }
+  }
+}
