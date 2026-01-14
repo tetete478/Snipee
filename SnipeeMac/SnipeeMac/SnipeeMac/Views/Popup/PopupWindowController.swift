@@ -45,9 +45,18 @@ class PopupWindowController: NSObject {
         stopKeyboardMonitoring()
         window?.orderOut(nil)
     }
-    
+
+    func resizeWindow(width: CGFloat) {
+        guard let window = window else { return }
+        var frame = window.frame
+        let oldWidth = frame.width
+        frame.size.width = width
+        frame.origin.x -= (width - oldWidth) / 2
+        window.setFrame(frame, display: true, animate: false)
+    }
+
     private func createWindow() {
-        let panel = NSPanel(
+            let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: Constants.UI.popupWidth, height: Constants.UI.popupMaxHeight),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,

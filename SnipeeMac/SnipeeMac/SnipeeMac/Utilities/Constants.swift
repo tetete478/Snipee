@@ -37,6 +37,7 @@ enum Constants {
         static let popupMaxHeight: CGFloat = 500
         static let submenuWidth: CGFloat = 280
         static let submenuMaxHeight: CGFloat = 650
+        static let expandedPopupWidth: CGFloat = 470
     }
     
     enum History {

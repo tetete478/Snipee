@@ -8,7 +8,10 @@ import SwiftUI
 struct MainPopupView: View {
     @StateObject private var clipboardService = ClipboardService.shared
     @State private var selectedIndex: Int = 0
-    
+    @State private var isSubmenuOpen: Bool = false
+    @State private var submenuItems: [Snippet] = []
+    @State private var submenuSelectedIndex: Int = 0
+
     private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
     
     private var pinnedItems: [HistoryItem] {
@@ -28,6 +31,22 @@ struct MainPopupView: View {
     }
     
     var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            mainMenuContent
+            
+            if isSubmenuOpen && !submenuItems.isEmpty {
+                submenuContent
+            }
+        }
+        .frame(width: isSubmenuOpen ? Constants.UI.expandedPopupWidth : Constants.UI.popupWidth)
+        .background(theme.backgroundColor)
+        .cornerRadius(10)
+        .onAppear {
+            setupKeyboardHandler()
+        }
+    }
+
+    private var mainMenuContent: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -79,10 +98,21 @@ struct MainPopupView: View {
                             }
                             
                         }
-                                                
+                        
                         // Snippet folders section
-                        if !snippetFolders.isEmpty {
-                            MenuSection(title: "スニペット", theme: theme)
+                        MenuSection(title: "スニペット", theme: theme)
+                        if snippetFolders.isEmpty {
+                            HStack {
+                                Text("📁")
+                                    .frame(width: 14)
+                                    .opacity(0.4)
+                                Text("スニペットがありません")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 3)
+                        } else {
                             ForEach(Array(snippetFolders.enumerated()), id: \.element.id) { index, folder in
                                 let globalIndex = pinnedItems.count + recentItems.count + index
                                 MenuItemRow(
@@ -141,50 +171,138 @@ struct MainPopupView: View {
             Divider()
             HStack(spacing: 14) {
                 FooterKey(key: "↑↓", label: "選択")
-                FooterKey(key: "→", label: "展開")
-                FooterKey(key: "←", label: "閉じる")
+                FooterKey(key: "▶", label: "展開")
+                FooterKey(key: "◀", label: "閉じる")
                 FooterKey(key: "Esc", label: "終了")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
         }
         .frame(width: Constants.UI.popupWidth)
-        .background(theme.backgroundColor)
-        .cornerRadius(10)
-        .onAppear {
-            setupKeyboardHandler()
-        }
+        
     }
     
+    // 修正後
+    private var submenuContent: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(submenuItems.enumerated()), id: \.element.id) { index, snippet in
+                            Button(action: { pasteSnippet(snippet) }) {
+                                HStack {
+                                    Text("📄")
+                                        .frame(width: 16)
+                                    Text("\(index + 1).")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(submenuSelectedIndex == index ? .white : theme.secondaryTextColor)
+                                        .frame(width: 20)
+                                    Text(snippet.title.prefix(25).description)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(submenuSelectedIndex == index ? .white : theme.textColor)
+                                        .lineLimit(1)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 3)
+                                .background(submenuSelectedIndex == index ? theme.accentColor : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                            .id(index)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .onChange(of: submenuSelectedIndex) { oldValue, newValue in
+                    withAnimation {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
+            }
+        }
+        .frame(width: Constants.UI.submenuWidth)
+        .frame(maxHeight: Constants.UI.submenuMaxHeight)
+        .background(theme.backgroundColor)
+        .overlay(
+            Rectangle()
+                .frame(width: 1)
+                .foregroundColor(Color.gray.opacity(0.3)),
+            alignment: .leading
+        )
+    }
+
+    // 修正後
     private func setupKeyboardHandler() {
         PopupWindowController.shared.onKeyDown = { [self] keyCode in
-            switch keyCode {
-            case 126: // Up
-                if selectedIndex > 0 {
-                    selectedIndex -= 1
-                }
-                return true
-            case 125: // Down
-                if selectedIndex < totalSelectableCount - 1 {
-                    selectedIndex += 1
-                }
-                return true
-            case 36: // Enter
-                executeSelectedItem()
-                return true
-            default:
-                // Number keys (101-109)
-                if keyCode >= 101 && keyCode <= 109 {
-                    let num = Int(keyCode) - 100
-                    let targetIndex = pinnedItems.count + num - 1
-                    if targetIndex < pinnedItems.count + recentItems.count {
-                        let item = recentItems[num - 1]
-                        pasteItem(item)
-                    }
-                    return true
-                }
-                return false
+            if isSubmenuOpen {
+                return handleSubmenuKeyDown(keyCode)
+            } else {
+                return handleMainMenuKeyDown(keyCode)
             }
+        }
+    }
+
+    private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 126: // Up
+            if selectedIndex > 0 {
+                selectedIndex -= 1
+            }
+            return true
+        case 125: // Down
+            if selectedIndex < totalSelectableCount - 1 {
+                selectedIndex += 1
+            }
+            return true
+        case 124: // Right - サブメニュー展開
+            openSubmenuForSelectedFolder()
+            return true
+        case 36: // Enter
+            executeSelectedItem()
+            return true
+        default:
+            if keyCode >= 101 && keyCode <= 109 {
+                let num = Int(keyCode) - 100
+                let targetIndex = pinnedItems.count + num - 1
+                if targetIndex < pinnedItems.count + recentItems.count {
+                    let item = recentItems[num - 1]
+                    pasteItem(item)
+                }
+                return true
+            }
+            return false
+        }
+    }
+
+    private func handleSubmenuKeyDown(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 126: // Up
+            if submenuSelectedIndex > 0 {
+                submenuSelectedIndex -= 1
+            }
+            return true
+        case 125: // Down
+            if submenuSelectedIndex < submenuItems.count - 1 {
+                submenuSelectedIndex += 1
+            }
+            return true
+        case 123: // Left - サブメニュー閉じる
+            closeSubmenu()
+            return true
+        case 36: // Enter
+            if submenuSelectedIndex < submenuItems.count {
+                pasteSnippet(submenuItems[submenuSelectedIndex])
+            }
+            return true
+        default:
+            if keyCode >= 101 && keyCode <= 109 {
+                let num = Int(keyCode) - 100
+                if num <= submenuItems.count {
+                    pasteSnippet(submenuItems[num - 1])
+                }
+                return true
+            }
+            return false
         }
     }
     
@@ -221,6 +339,36 @@ struct MainPopupView: View {
     private func pasteItem(_ item: HistoryItem) {
         PopupWindowController.shared.hidePopup()
         PasteService.shared.pasteText(item.content)
+    }
+
+    private func pasteSnippet(_ snippet: Snippet) {
+        PopupWindowController.shared.hidePopup()
+        let content = VariableService.shared.processVariables(snippet.content)
+        PasteService.shared.pasteText(content)
+    }
+
+    private func openSubmenuForSelectedFolder() {
+        let folderStartIndex = pinnedItems.count + recentItems.count
+        let folderEndIndex = folderStartIndex + snippetFolders.count
+        
+        guard selectedIndex >= folderStartIndex && selectedIndex < folderEndIndex else { return }
+        
+        let folderIndex = selectedIndex - folderStartIndex
+        let folder = snippetFolders[folderIndex]
+        
+        submenuItems = folder.snippets
+        submenuSelectedIndex = 0
+        isSubmenuOpen = true
+        
+        PopupWindowController.shared.resizeWindow(width: Constants.UI.expandedPopupWidth)
+    }
+
+    private func closeSubmenu() {
+        isSubmenuOpen = false
+        submenuItems = []
+        submenuSelectedIndex = 0
+        
+        PopupWindowController.shared.resizeWindow(width: Constants.UI.popupWidth)
     }
 }
 
