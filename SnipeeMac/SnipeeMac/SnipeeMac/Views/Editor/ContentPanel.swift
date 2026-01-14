@@ -70,6 +70,11 @@ struct ContentPanel: View {
                                 }
                             }
                         }
+                        .onMove { from, to in
+                            if !isShowingMaster {
+                                moveSnippet(from: from, to: to)
+                            }
+                        }
                     }
                     .listStyle(.plain)
                 } else {

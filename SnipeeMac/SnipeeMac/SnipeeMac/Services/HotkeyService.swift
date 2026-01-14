@@ -59,32 +59,49 @@ class HotkeyService {
     private func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         guard type == .keyDown else { return Unmanaged.passRetained(event) }
         
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
         
-        let hasCmd = flags.contains(.maskCommand)
-        let hasCtrl = flags.contains(.maskControl)
-        let hasAlt = flags.contains(.maskAlternate)
+        let settings = StorageService.shared.getSettings()
         
-        // Cmd + Ctrl + C (keyCode 8)
-        if keyCode == 8 && hasCmd && hasCtrl && !hasAlt {
+        // Main hotkey
+        if matchesHotkey(keyCode: keyCode, flags: flags, config: settings.hotkeyMain) {
             DispatchQueue.main.async { self.onMainHotkey?() }
             return nil
         }
         
-        // Cmd + Ctrl + V (keyCode 9)
-        if keyCode == 9 && hasCmd && hasCtrl && !hasAlt {
+        // Snippet hotkey
+        if matchesHotkey(keyCode: keyCode, flags: flags, config: settings.hotkeySnippet) {
             DispatchQueue.main.async { self.onSnippetHotkey?() }
             return nil
         }
         
-        // Cmd + Ctrl + X (keyCode 7)
-        if keyCode == 7 && hasCmd && hasCtrl && !hasAlt {
+        // History hotkey
+        if matchesHotkey(keyCode: keyCode, flags: flags, config: settings.hotkeyHistory) {
             DispatchQueue.main.async { self.onHistoryHotkey?() }
             return nil
         }
         
         return Unmanaged.passRetained(event)
+    }
+    
+    private func matchesHotkey(keyCode: UInt16, flags: CGEventFlags, config: HotkeyConfig) -> Bool {
+        guard keyCode == config.keyCode else { return false }
+        
+        let hasCmd = flags.contains(.maskCommand)
+        let hasCtrl = flags.contains(.maskControl)
+        let hasAlt = flags.contains(.maskAlternate)
+        let hasShift = flags.contains(.maskShift)
+        
+        let configHasCmd = config.modifiers & UInt(cmdKey) != 0
+        let configHasCtrl = config.modifiers & UInt(controlKey) != 0
+        let configHasAlt = config.modifiers & UInt(optionKey) != 0
+        let configHasShift = config.modifiers & UInt(shiftKey) != 0
+        
+        return hasCmd == configHasCmd &&
+               hasCtrl == configHasCtrl &&
+               hasAlt == configHasAlt &&
+               hasShift == configHasShift
     }
     
     static func checkAccessibilityPermission() -> Bool {

@@ -9,6 +9,12 @@ import SwiftUI
 struct GeneralTab: View {
     @State private var settings = StorageService.shared.getSettings()
     @State private var launchAtLogin = false
+    @State private var hotkeyMainCode: UInt16 = 8
+    @State private var hotkeyMainMod: UInt = 0x40101
+    @State private var hotkeySnippetCode: UInt16 = 9
+    @State private var hotkeySnippetMod: UInt = 0x40101
+    @State private var hotkeyHistoryCode: UInt16 = 7
+    @State private var hotkeyHistoryMod: UInt = 0x40101
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -51,9 +57,39 @@ struct GeneralTab: View {
             }
             
             Divider()
-            
-            // Links
-            VStack(alignment: .leading, spacing: 8) {
+                        
+                        // Hotkey Settings
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("ホットキー設定")
+                                .font(.headline)
+                            
+                            HotkeyField(
+                                label: "メイン:",
+                                keyCode: $hotkeyMainCode,
+                                modifiers: $hotkeyMainMod
+                            )
+                            
+                            HotkeyField(
+                                label: "スニペット:",
+                                keyCode: $hotkeySnippetCode,
+                                modifiers: $hotkeySnippetMod
+                            )
+                            
+                            HotkeyField(
+                                label: "履歴:",
+                                keyCode: $hotkeyHistoryCode,
+                                modifiers: $hotkeyHistoryMod
+                            )
+                            
+                            Text("クリックしてキーを入力してください")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Divider()
+                        
+                        // Links
+                        VStack(alignment: .leading, spacing: 8) {
                 Text("リンク")
                     .font(.headline)
                 
@@ -63,11 +99,40 @@ struct GeneralTab: View {
             
             Spacer()
         }
-        .onChange(of: settings.userName) { saveSettings() }
-        .onChange(of: settings.historyMaxCount) { saveSettings() }
-    }
+        .onChange(of: settings.userName) { _, _ in saveSettings() }
+            .onChange(of: settings.historyMaxCount) { _, _ in saveSettings() }
+            .onChange(of: hotkeyMainCode) { _, _ in saveHotkeys() }
+            .onChange(of: hotkeyMainMod) { _, _ in saveHotkeys() }
+            .onChange(of: hotkeySnippetCode) { _, _ in saveHotkeys() }
+            .onChange(of: hotkeySnippetMod) { _, _ in saveHotkeys() }
+            .onChange(of: hotkeyHistoryCode) { _, _ in saveHotkeys() }
+            .onChange(of: hotkeyHistoryMod) { _, _ in saveHotkeys() }
+            .onAppear {
+                loadHotkeys()
+            }
+        }
     
     private func saveSettings() {
         StorageService.shared.saveSettings(settings)
+    }
+
+    private func loadHotkeys() {
+        hotkeyMainCode = settings.hotkeyMain.keyCode
+        hotkeyMainMod = settings.hotkeyMain.modifiers
+        hotkeySnippetCode = settings.hotkeySnippet.keyCode
+        hotkeySnippetMod = settings.hotkeySnippet.modifiers
+        hotkeyHistoryCode = settings.hotkeyHistory.keyCode
+        hotkeyHistoryMod = settings.hotkeyHistory.modifiers
+    }
+
+    private func saveHotkeys() {
+        settings.hotkeyMain = HotkeyConfig(keyCode: hotkeyMainCode, modifiers: hotkeyMainMod)
+        settings.hotkeySnippet = HotkeyConfig(keyCode: hotkeySnippetCode, modifiers: hotkeySnippetMod)
+        settings.hotkeyHistory = HotkeyConfig(keyCode: hotkeyHistoryCode, modifiers: hotkeyHistoryMod)
+        StorageService.shared.saveSettings(settings)
+        
+        // ホットキーサービスを再起動
+        HotkeyService.shared.stopListening()
+        HotkeyService.shared.startListening()
     }
 }

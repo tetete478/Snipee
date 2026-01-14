@@ -71,6 +71,11 @@ struct FolderSidebar: View {
                         }
                     }
                 }
+                .onMove { from, to in
+                    if !isShowingMaster {
+                        moveFolder(from: from, to: to)
+                    }
+                }
             }
             .listStyle(.sidebar)
             
