@@ -8,118 +8,274 @@
 
 ## 📊 進捗サマリー
 
-| Phase | 内容 | 状態 | 備考 |
-|-------|------|------|------|
-| Phase 1 | Xcodeプロジェクト準備 | ✅ 完了 | |
-| Phase 2 | コア機能移植 | ✅ 完了 | 15ファイル作成 |
-| Phase 3 | ポップアップUI | ✅ 完了 | 8ファイル作成 |
-| Phase 4 | システム連携 | ✅ 完了 | ホットキー・ペースト動作確認済 |
-| Phase 5 | 設定画面 | ✅ 完了 | 4タブ構成 |
-| Phase 6 | スニペットエディタ | ✅ 完了 | 3ペイン構成 |
-| Phase 7 | Google連携 | 🎯 次 | OAuth設定必要 |
-| Phase 8 | オンボーディング | ⬜ 未着手 | |
-| Phase 9 | 仕上げ | ⬜ 未着手 | |
+| Phase   | 内容                   | 状態      | 備考                           |
+| ------- | ---------------------- | --------- | ------------------------------ |
+| Phase 1 | Xcode プロジェクト準備 | ✅ 完了   |                                |
+| Phase 2 | コア機能移植           | ✅ 完了   | 15 ファイル作成                |
+| Phase 3 | ポップアップ UI        | ✅ 完了   | 8 ファイル作成                 |
+| Phase 4 | システム連携           | ✅ 完了   | ホットキー・ペースト動作確認済 |
+| Phase 5 | 設定画面               | ✅ 完了   | 4 タブ構成                     |
+| Phase 6 | スニペットエディタ     | ✅ 完了   | 3 ペイン構成                   |
+| Phase 7 | Google 連携            | 🎯 次     | OAuth 設定必要                 |
+| Phase 8 | オンボーディング       | ⬜ 未着手 |                                |
+| Phase 9 | 仕上げ                 | ⬜ 未着手 |                                |
 
-**進捗率**: 約 65%（6/9 Phase完了）
+**進捗率**: 約 65%（6/9 Phase 完了）
 
 ---
 
 ## 🏗️ 作成済みファイル一覧
 
-### App/ (2ファイル)
+### App/ (2 ファイル)
+
 - [x] `SnipeeMacApp.swift` - エントリーポイント
 - [x] `AppDelegate.swift` - NSApplicationDelegate
 
-### Models/ (5ファイル)
+### Models/ (5 ファイル)
+
 - [x] `Snippet.swift` - スニペット構造体
 - [x] `HistoryItem.swift` - 履歴アイテム
 - [x] `Member.swift` - メンバー情報
 - [x] `Department.swift` - 部署情報
 - [x] `AppSettings.swift` - 設定
 
-### Services/ (5ファイル)
+### Services/ (5 ファイル)
+
 - [x] `StorageService.swift` - データ永続化
 - [x] `ClipboardService.swift` - クリップボード監視
 - [x] `VariableService.swift` - 変数置換
 - [x] `HotkeyService.swift` - グローバルホットキー
 - [x] `PasteService.swift` - 自動ペースト
 
-### Utilities/ (4ファイル)
+### Utilities/ (4 ファイル)
+
 - [x] `Constants.swift` - 定数定義
-- [x] `KeychainHelper.swift` - Keychain操作
-- [x] `XMLParserHelper.swift` - XML解析
+- [x] `KeychainHelper.swift` - Keychain 操作
+- [x] `XMLParserHelper.swift` - XML 解析
 - [x] `KeyboardNavigator.swift` - キーボード操作
 
-### Theme/ (1ファイル)
-- [x] `ColorTheme.swift` - 9テーマ定義
+### Theme/ (1 ファイル)
 
-### Views/Popup/ (5ファイル)
+- [x] `ColorTheme.swift` - 9 テーマ定義
+
+### Views/Popup/ (5 ファイル)
+
 - [x] `PopupWindowController.swift` - ポップアップ制御
 - [x] `MainPopupView.swift` - メインポップアップ
 - [x] `SnippetPopupView.swift` - スニペット専用
 - [x] `HistoryPopupView.swift` - 履歴専用
 - [x] `SubmenuView.swift` - サブメニュー
 
-### Views/Components/ (3ファイル)
+### Views/Components/ (3 ファイル)
+
 - [x] `ThemePicker.swift` - テーマ選択
 - [x] `HotkeyField.swift` - ホットキー入力
 - [x] `SearchField.swift` - 検索ボックス
 
-### Views/Settings/ (5ファイル)
+### Views/Settings/ (5 ファイル)
+
 - [x] `SettingsView.swift` - 設定メイン
 - [x] `GeneralTab.swift` - 一般タブ
 - [x] `DisplayTab.swift` - 表示・操作タブ
 - [x] `AccountTab.swift` - アカウントタブ
 - [x] `AdminTab.swift` - 管理者タブ
 
-### Views/Editor/ (4ファイル)
+### Views/Editor/ (4 ファイル)
+
 - [x] `SnippetEditorWindow.swift` - エディタウィンドウ
 - [x] `SnippetEditorView.swift` - エディタメイン
 - [x] `FolderSidebar.swift` - フォルダサイドバー
 - [x] `ContentPanel.swift` - コンテンツパネル
 
-**合計: 34ファイル作成済み**
+**合計: 34 ファイル作成済み**
 
 ---
 
 ## ✅ 動作確認済み機能
 
-| 機能 | 状態 | 備考 |
-|------|------|------|
-| メニューバーアイコン | ✅ | クリップボードアイコン表示 |
-| 左クリック → ポップアップ | ✅ | |
-| 右クリック → メニュー | ✅ | |
-| ホットキー Cmd+Ctrl+C | ✅ | メインポップアップ |
-| ホットキー Cmd+Ctrl+V | ✅ | スニペットポップアップ |
-| ホットキー Cmd+Ctrl+X | ✅ | 履歴ポップアップ |
-| ホットキートグル（2回で閉じる） | ✅ | |
-| クリップボード履歴 | ✅ | 自動収集動作 |
-| 設定画面 | ✅ | 4タブ表示 |
-| スニペットエディタ | ✅ | 3ペイン表示 |
-| テーマ切り替え | ⚠️ | UI実装済、反映は部分的 |
-| Google OAuth | ⬜ | 未実装 |
-| マスタスニペット同期 | ⬜ | 未実装 |
+| 機能                             | 状態 | 備考                       |
+| -------------------------------- | ---- | -------------------------- |
+| メニューバーアイコン             | ✅   | クリップボードアイコン表示 |
+| 左クリック → ポップアップ        | ✅   |                            |
+| 右クリック → メニュー            | ✅   |                            |
+| ホットキー Cmd+Ctrl+C            | ✅   | メインポップアップ         |
+| ホットキー Cmd+Ctrl+V            | ✅   | スニペットポップアップ     |
+| ホットキー Cmd+Ctrl+X            | ✅   | 履歴ポップアップ           |
+| ホットキートグル（2 回で閉じる） | ✅   |                            |
+| クリップボード履歴               | ✅   | 自動収集動作               |
+| 設定画面                         | ✅   | 4 タブ表示                 |
+| スニペットエディタ               | ✅   | 3 ペイン表示               |
+| テーマ切り替え                   | ⚠️   | UI 実装済、反映は部分的    |
+| Google OAuth                     | ⬜   | 未実装                     |
+| マスタスニペット同期             | ⬜   | 未実装                     |
 
 ---
 
+---
+
+## 🔄 Electron 版再現ロードマップ
+
+### 📊 画面別差分一覧
+
+#### 簡易ホーム (MainPopupView)
+
+| 項目             | Electron 版                 | Swift 版           | 状態      |
+| ---------------- | --------------------------- | ------------------ | --------- |
+| 幅               | 180px                       | 320px              | ❌ 要変更 |
+| ヘッダー         | 「履歴」                    | 「📋 Snipee v1.0」 | ❌ 要変更 |
+| 履歴表示         | 最大 15 件                  | 最大 5 件          | ❌ 要変更 |
+| スニペット       | フォルダ一覧表示            | なし               | ❌ 要追加 |
+| 選択スタイル     | 青背景+白文字               | 薄いアクセント色   | ❌ 要変更 |
+| 終了ボタン       | 赤文字                      | 通常色             | ❌ 要変更 |
+| フッター         | 4 項目（↑↓/→/←/Esc）        | 3 項目             | ❌ 要変更 |
+| サブメニュー展開 | → キーで右に展開            | なし               | ❌ 要実装 |
+| キーボード操作   | ↑↓ 選択/Enter 実行/1-9 番号 | 基本動作のみ       | ⚠️ 部分的 |
+
+#### スニペット専用 (SnippetPopupView)
+
+| 項目                | Electron 版          | Swift 版       | 状態        |
+| ------------------- | -------------------- | -------------- | ----------- |
+| マスタ/個別切り替え | タブ表示             | セグメント     | ⚠️ 確認必要 |
+| フォルダ展開        | → キーでサブメニュー | クリックで展開 | ❌ 要変更   |
+| サブメニュー        | 右側に別パネル       | インライン     | ❌ 要変更   |
+
+#### 履歴専用 (HistoryPopupView)
+
+| 項目         | Electron 版      | Swift 版       | 状態        |
+| ------------ | ---------------- | -------------- | ----------- |
+| グループ表示 | 1-15/16-30/31-45 | あり           | ⚠️ 確認必要 |
+| ピン留め操作 | P キーでトグル   | ボタンクリック | ❌ 要追加   |
+
+#### 設定画面 (SettingsView)
+
+| 項目           | Electron 版                       | Swift 版 | 状態      |
+| -------------- | --------------------------------- | -------- | --------- |
+| タブ構成       | 一般/表示・操作/アカウント/管理者 | 同じ     | ✅        |
+| ホットキー変更 | 入力フィールド                    | 表示のみ | ❌ 要実装 |
+| 同期ボタン     | 今すぐ同期                        | なし     | ❌ 要実装 |
+
+#### スニペットエディタ (SnippetEditorView)
+
+| 項目             | Electron 版        | Swift 版 | 状態        |
+| ---------------- | ------------------ | -------- | ----------- |
+| 3 ペイン構成     | フォルダ/一覧/編集 | 同じ     | ✅          |
+| ドラッグ並び替え | あり               | なし     | ❌ 要実装   |
+| インポート       | XML ファイル選択   | あり     | ⚠️ 確認必要 |
+| エクスポート     | フォルダ選択式     | あり     | ⚠️ 確認必要 |
+
+---
+
+### 🎯 再現タスク優先順位
+
+#### Phase A: 簡易ホーム完全再現（最優先）
+
+- [ ] A-1: ポップアップ幅を 180px に変更
+- [ ] A-2: ヘッダーを「履歴」に変更
+- [ ] A-3: 履歴表示を最大 15 件に変更
+- [ ] A-4: スニペットフォルダ一覧を追加
+- [ ] A-5: 選択スタイルを青背景+白文字に変更
+- [ ] A-6: 終了ボタンを赤文字に変更
+- [ ] A-7: フッターを 4 項目に変更
+- [ ] A-8: サブメニュー展開機能（→ キー）
+- [ ] A-9: サブメニュー閉じる機能（← キー）
+
+#### Phase B: スニペット/履歴ポップアップ
+
+- [ ] B-1: スニペットポップアップのサブメニュー
+- [ ] B-2: 履歴ポップアップの P キーピン留め
+- [ ] B-3: グループ表示の確認・調整
+
+#### Phase C: 設定画面
+
+- [ ] C-1: ホットキー変更機能
+- [ ] C-2: 同期ボタン（Google 連携後）
+
+#### Phase D: スニペットエディタ
+
+- [ ] D-1: ドラッグ&ドロップ並び替え
+- [ ] D-2: インポート/エクスポート確認
+
+#### Phase E: Google 連携
+
+- [ ] E-1: OAuth 認証
+- [ ] E-2: Sheets API（メンバー管理）
+- [ ] E-3: Drive API（マスタ XML）
+- [ ] E-4: 自動同期（2 時間）
+
+#### Phase F: オンボーディング
+
+- [ ] F-1: ウェルカム画面
+- [ ] F-2: ログイン画面
+- [ ] F-3: 権限ガイド画面
+
+#### Phase G: 仕上げ
+
+- [ ] G-1: Sparkle 自動更新設定
+- [ ] G-2: DMG 作成
+- [ ] G-3: コード署名・公証
+
+---
+
+### 📐 デザイン仕様（Electron 版準拠）
+
+#### サイズ
+
+- ポップアップ幅: 180px
+- サブメニュー幅: 280px
+- フォントサイズ: 11px（small）/ 13px（normal）
+
+#### カラー
+
+- 背景: var(--theme-bg) = #f5f5f7
+- テキスト: var(--theme-text) = #1d1d1f
+- 選択時背景: var(--primary-color) = #86868b
+- 選択時テキスト: #ffffff
+- ホバー: var(--hover-bg) = #ebebeb
+- 終了ボタン: #d32f2f（赤）
+
+#### 構造
+
+```
+┌─────────────────┐
+│ 履歴            │ ← セクションヘッダー
+├─────────────────┤
+│ 📄 履歴なし     │ ← 空状態 or 履歴一覧
+├─────────────────┤
+│ スニペット      │ ← セクションヘッダー
+├─────────────────┤
+│ 📁 フォルダ1  > │ ← フォルダ行（矢印付き）
+│ 📁 フォルダ2  > │
+├─────────────────┤
+│ 🗑 履歴をクリア │ ← アクション
+│ ✏️ スニペット編集│
+│ ⚙️ 環境設定     │
+│ × Snipeeを終了  │ ← 赤文字
+├─────────────────┤
+│ ↑↓ → ← Esc     │ ← フッター
+└─────────────────┘
+```
+
 ## 🎯 次回セッションで実装するもの
 
-### Phase 7: Google連携
+### Phase 7: Google 連携
 
 #### 必要なファイル（Services/に追加）
-- [ ] `GoogleAuthService.swift` - OAuth認証
+
+- [ ] `GoogleAuthService.swift` - OAuth 認証
 - [ ] `SheetsAPIService.swift` - Sheets API
-- [ ] `DriveAPIService.swift` - Drive API  
+- [ ] `DriveAPIService.swift` - Drive API
 - [ ] `MemberManager.swift` - 権限管理
 - [ ] `SyncService.swift` - 自動同期
 
 #### 事前準備（必須）
-1. **GCP プロジェクト設定**
-   - OAuth 同意画面設定
-   - OAuth クライアントID作成（macOS用）
-   - リダイレクトURI: カスタムURLスキーム
 
-2. **Xcode設定**
+1. **GCP プロジェクト設定**
+
+   - OAuth 同意画面設定
+   - OAuth クライアント ID 作成（macOS 用）
+   - リダイレクト URI: カスタム URL スキーム
+
+2. **Xcode 設定**
    - URL Schemes 追加（Info.plist）
    - xcconfig ファイル作成（Client ID/Secret）
 
@@ -128,12 +284,14 @@
 ## 🐛 既知の警告・課題
 
 ### 警告（動作に影響なし）
-| ファイル | 内容 | 対応 |
-|----------|------|------|
+
+| ファイル           | 内容                                       | 対応       |
+| ------------------ | ------------------------------------------ | ---------- |
 | ContentPanel.swift | Value 'snippet' was defined but never used | 後で対応可 |
 
 ### 課題（将来対応）
-- フォルダ/スニペットのドラッグ&ドロップ並び替え（.onMove削除中）
+
+- フォルダ/スニペットのドラッグ&ドロップ並び替え（.onMove 削除中）
 - テーマ変更のリアルタイム反映
 - 自動ペーストの安定性向上
 
@@ -142,30 +300,38 @@
 ## 🔧 プロジェクト設定メモ
 
 ### Bundle ID
+
 `com.addness.SnipeeMac`
 
 ### Display Name
+
 `Snipee`
 
 ### Team
+
 `Teruya Komatsu`
 
 ### Deployment Target
+
 `macOS 26.2`
 
 ### 追加済みライブラリ（SPM）
+
 - Sparkle 2.8.1（自動更新用）
 
 ### 有効な権限（Entitlements）
+
 - Outgoing Connections (Client) ✅
 - Apple Events ✅
 
-### Info.plist設定
+### Info.plist 設定
+
 - Application is agent (UIElement) = YES ✅
 
 ---
 
 ## 📁 プロジェクト構造
+
 ```
 SnipeeMac/
 ├── SnipeeMac.xcodeproj
@@ -219,6 +385,7 @@ SnipeeMac/
 ---
 
 ## 📝 次回セッション用コマンド
+
 ```
 Snipee Swift版の開発を続けます。
 
