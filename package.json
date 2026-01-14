@@ -56,6 +56,7 @@
     },
     "files": [
       "app/**/*",
+      ".env",
       "package.json",
       "!app/**/*.map"
     ],

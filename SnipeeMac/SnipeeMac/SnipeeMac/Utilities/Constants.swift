@@ -33,7 +33,7 @@ enum Constants {
     }
     
     enum UI {
-        static let popupWidth: CGFloat = 320
+        static let popupWidth: CGFloat = 180
         static let popupMaxHeight: CGFloat = 500
         static let submenuWidth: CGFloat = 280
         static let submenuMaxHeight: CGFloat = 650

@@ -16,27 +16,29 @@ struct MainPopupView: View {
     }
     
     private var recentItems: [HistoryItem] {
-        Array(clipboardService.history.filter { !$0.isPinned }.prefix(5))
+            Array(clipboardService.history.filter { !$0.isPinned }.prefix(15))
+    }
+    
+    private var snippetFolders: [SnippetFolder] {
+        StorageService.shared.getPersonalSnippets() + StorageService.shared.getMasterSnippets()
     }
     
     private var totalSelectableCount: Int {
-        pinnedItems.count + recentItems.count + 4 // 4 action items
+        pinnedItems.count + recentItems.count + snippetFolders.count + 4 // 4 action items
     }
     
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("📋 Snipee")
-                    .font(.headline)
-                    .foregroundColor(theme.textColor)
-                Spacer()
-                Text("v\(Constants.App.version)")
-                    .font(.caption)
+                Text("履歴")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(theme.secondaryTextColor)
+                Spacer()
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
+            .background(Color(hex: "e0e0e0"))
             
             Divider()
             
@@ -76,24 +78,28 @@ struct MainPopupView: View {
                                 .id(globalIndex)
                             }
                             
-                            // Show all history link
-                            MenuItemRow(
-                                title: "すべての履歴を見る...",
-                                icon: "📋",
-                                isSelected: false,
-                                theme: theme
-                            ) {
-                                PopupWindowController.shared.hidePopup()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    PopupWindowController.shared.showPopup(type: .history)
+                        }
+                                                
+                        // Snippet folders section
+                        if !snippetFolders.isEmpty {
+                            MenuSection(title: "スニペット", theme: theme)
+                            ForEach(Array(snippetFolders.enumerated()), id: \.element.id) { index, folder in
+                                let globalIndex = pinnedItems.count + recentItems.count + index
+                                MenuItemRow(
+                                    title: folder.name,
+                                    icon: "📁",
+                                    isSelected: selectedIndex == globalIndex,
+                                    hasArrow: true,
+                                    theme: theme
+                                ) {
+                                    // TODO: Show submenu
                                 }
+                                .id(globalIndex)
                             }
                         }
                         
-                        Divider().padding(.vertical, 4)
-                        
                         // Actions
-                        let actionStartIndex = pinnedItems.count + recentItems.count
+                        let actionStartIndex = pinnedItems.count + recentItems.count + snippetFolders.count
                         MenuSection(title: "⚙️ アクション", theme: theme)
                         
                         MenuItemRow(title: "スニペット編集", icon: "✏️", isSelected: selectedIndex == actionStartIndex, theme: theme) {
@@ -117,7 +123,7 @@ struct MainPopupView: View {
                         }
                         .id(actionStartIndex + 2)
                         
-                        MenuItemRow(title: "終了", icon: "🚪", isSelected: selectedIndex == actionStartIndex + 3, theme: theme) {
+                        MenuItemRow(title: "Snipeeを終了", icon: "×", isSelected: selectedIndex == actionStartIndex + 3, isDestructive: true, theme: theme) {
                             NSApp.terminate(nil)
                         }
                         .id(actionStartIndex + 3)
@@ -133,10 +139,11 @@ struct MainPopupView: View {
             
             // Footer
             Divider()
-            HStack {
-                Text("↑↓ 移動  Enter 選択  Esc 閉じる")
-                    .font(.caption2)
-                    .foregroundColor(theme.secondaryTextColor)
+            HStack(spacing: 14) {
+                FooterKey(key: "↑↓", label: "選択")
+                FooterKey(key: "→", label: "展開")
+                FooterKey(key: "←", label: "閉じる")
+                FooterKey(key: "Esc", label: "終了")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -243,6 +250,8 @@ struct MenuItemRow: View {
     var subtitle: String? = nil
     var icon: String? = nil
     var isSelected: Bool = false
+    var hasArrow: Bool = false
+    var isDestructive: Bool = false
     let theme: ColorTheme
     var action: () -> Void
     
@@ -255,8 +264,8 @@ struct MenuItemRow: View {
                 }
                 
                 Text(title)
-                    .font(.system(size: 13))
-                    .foregroundColor(theme.textColor)
+                    .font(.system(size: 11))
+                    .foregroundColor(isSelected ? .white : (isDestructive ? .red : theme.textColor))
                     .lineLimit(1)
                 
                 Spacer()
@@ -264,16 +273,47 @@ struct MenuItemRow: View {
                 if let subtitle = subtitle {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundColor(theme.secondaryTextColor)
+                        .foregroundColor(isSelected ? .white : theme.secondaryTextColor)
                         .frame(width: 20)
+                }
+                
+                if hasArrow {
+                    Text(">")
+                        .font(.system(size: 10))
+                        .foregroundColor(isSelected ? .white : .gray)
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(isSelected ? theme.accentColor.opacity(0.2) : Color.clear)
-            .cornerRadius(4)
+            .padding(.vertical, 3)
+            .background(isSelected ? theme.accentColor : Color.clear)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 4)
+    }
+}
+
+
+// MARK: - Footer Key
+
+struct FooterKey: View {
+    let key: String
+    let label: String
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(key)
+                .font(.system(size: 8, design: .monospaced))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Color.white)
+                .cornerRadius(2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                )
+            Text(label)
+                .font(.system(size: 9))
+                .foregroundColor(.gray)
+        }
     }
 }
