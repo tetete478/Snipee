@@ -60,6 +60,11 @@
       "package.json",
       "!app/**/*.map"
     ],
+    "asarUnpack": [
+      "node_modules/gaxios/**/*",
+      "node_modules/googleapis/**/*",
+      "node_modules/google-auth-library/**/*"
+    ],
     "win": {
       "target": [
         {
