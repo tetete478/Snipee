@@ -111,11 +111,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         hotkeyService.onSnippetHotkey = {
-            PopupWindowController.shared.showPopup(type: .snippet)
+            if PopupWindowController.shared.isVisible(type: .snippet) {
+                PopupWindowController.shared.hidePopup()
+            } else {
+                PopupWindowController.shared.showPopup(type: .snippet)
+            }
         }
-        
+
         hotkeyService.onHistoryHotkey = {
-            PopupWindowController.shared.showPopup(type: .history)
+            if PopupWindowController.shared.isVisible(type: .history) {
+                PopupWindowController.shared.hidePopup()
+            } else {
+                PopupWindowController.shared.showPopup(type: .history)
+            }
         }
         
         hotkeyService.startListening()

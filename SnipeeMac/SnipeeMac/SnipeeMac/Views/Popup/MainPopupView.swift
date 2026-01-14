@@ -31,19 +31,12 @@ struct MainPopupView: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            mainMenuContent
-            
-            if isSubmenuOpen && !submenuItems.isEmpty {
-                submenuContent
+        mainMenuContent
+            .background(theme.backgroundColor)
+            .cornerRadius(10)
+            .onAppear {
+                setupKeyboardHandler()
             }
-        }
-        .frame(width: isSubmenuOpen ? Constants.UI.expandedPopupWidth : Constants.UI.popupWidth)
-        .background(theme.backgroundColor)
-        .cornerRadius(10)
-        .onAppear {
-            setupKeyboardHandler()
-        }
     }
 
     private var mainMenuContent: some View {
@@ -182,55 +175,17 @@ struct MainPopupView: View {
         
     }
     
-    // 修正後
-    private var submenuContent: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(Array(submenuItems.enumerated()), id: \.element.id) { index, snippet in
-                            Button(action: { pasteSnippet(snippet) }) {
-                                HStack {
-                                    Text("📄")
-                                        .frame(width: 16)
-                                    Text("\(index + 1).")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(submenuSelectedIndex == index ? .white : theme.secondaryTextColor)
-                                        .frame(width: 20)
-                                    Text(snippet.title.prefix(25).description)
-                                        .font(.system(size: 11))
-                                        .foregroundColor(submenuSelectedIndex == index ? .white : theme.textColor)
-                                        .lineLimit(1)
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
-                                .background(submenuSelectedIndex == index ? theme.accentColor : Color.clear)
-                            }
-                            .buttonStyle(.plain)
-                            .id(index)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .onChange(of: submenuSelectedIndex) { oldValue, newValue in
-                    withAnimation {
-                        proxy.scrollTo(newValue, anchor: .center)
-                    }
-                }
-            }
+    private func showSubmenuWindow() {
+    let content = SubmenuWindowContent(
+        items: submenuItems,
+        selectedIndex: $submenuSelectedIndex,
+        theme: theme,
+        onSelect: { snippet in
+            pasteSnippet(snippet)
         }
-        .frame(width: Constants.UI.submenuWidth)
-        .frame(maxHeight: Constants.UI.submenuMaxHeight)
-        .background(theme.backgroundColor)
-        .overlay(
-            Rectangle()
-                .frame(width: 1)
-                .foregroundColor(Color.gray.opacity(0.3)),
-            alignment: .leading
-        )
-    }
-
+    )
+    PopupWindowController.shared.showSubmenu(content: content)
+}
     // 修正後
     private func setupKeyboardHandler() {
         PopupWindowController.shared.onKeyDown = { [self] keyCode in
@@ -360,7 +315,7 @@ struct MainPopupView: View {
         submenuSelectedIndex = 0
         isSubmenuOpen = true
         
-        PopupWindowController.shared.resizeWindow(width: Constants.UI.expandedPopupWidth)
+        showSubmenuWindow()
     }
 
     private func closeSubmenu() {
@@ -368,7 +323,7 @@ struct MainPopupView: View {
         submenuItems = []
         submenuSelectedIndex = 0
         
-        PopupWindowController.shared.resizeWindow(width: Constants.UI.popupWidth)
+        PopupWindowController.shared.hideSubmenu()
     }
 }
 
@@ -463,5 +418,58 @@ struct FooterKey: View {
                 .font(.system(size: 9))
                 .foregroundColor(.gray)
         }
+    }
+}
+
+
+// MARK: - Submenu Window Content
+
+struct SubmenuWindowContent: View {
+    let items: [Snippet]
+    @Binding var selectedIndex: Int
+    let theme: ColorTheme
+    let onSelect: (Snippet) -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, snippet in
+                            Button(action: { onSelect(snippet) }) {
+                                HStack {
+                                    Text("📄")
+                                        .frame(width: 16)
+                                    Text("\(index + 1).")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(selectedIndex == index ? .white : theme.secondaryTextColor)
+                                        .frame(width: 20)
+                                    Text(snippet.title.prefix(25).description)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(selectedIndex == index ? .white : theme.textColor)
+                                        .lineLimit(1)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 3)
+                                .background(selectedIndex == index ? theme.accentColor : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                            .id(index)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .onChange(of: selectedIndex) { oldValue, newValue in
+                    withAnimation {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
+            }
+        }
+        .frame(width: Constants.UI.submenuWidth)
+        .frame(maxHeight: Constants.UI.submenuMaxHeight)
+        .background(theme.backgroundColor)
+        .cornerRadius(10)
     }
 }

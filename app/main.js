@@ -20,9 +20,7 @@ app.on('second-instance', () => {
   }
   
   // クリップボードウィンドウを表示
-  showClipboardWindow();
 });
-
 
 const googleAuth = require('./common/google-auth');
 const sheetsApi = require('./common/sheets-api');
@@ -30,6 +28,7 @@ const driveApi = require('./common/drive-api');
 const memberManager = require('./common/member-manager');
 
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const Store = require('electron-store');
 const fs = require('fs');
 

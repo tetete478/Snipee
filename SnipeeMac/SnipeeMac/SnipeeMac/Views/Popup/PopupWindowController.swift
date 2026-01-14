@@ -16,6 +16,7 @@ class PopupWindowController: NSObject {
     static let shared = PopupWindowController()
     
     private var window: NSPanel?
+    private var submenuWindow: NSPanel?
     private var currentType: PopupType = .main
     private var localMonitor: Any?
     
@@ -43,20 +44,87 @@ class PopupWindowController: NSObject {
     
     func hidePopup() {
         stopKeyboardMonitoring()
+        hideSubmenu()
         window?.orderOut(nil)
     }
 
-    func resizeWindow(width: CGFloat) {
-        guard let window = window else { return }
-        var frame = window.frame
-        let oldWidth = frame.width
-        frame.size.width = width
-        frame.origin.x -= (width - oldWidth) / 2
-        window.setFrame(frame, display: true, animate: false)
+    func isVisible(type: PopupType) -> Bool {
+        guard let window = window, window.isVisible else { return false }
+        return currentType == type
+    }
+    
+    // MARK: - Submenu Window
+    
+    func showSubmenu<Content: View>(content: Content) {
+        if submenuWindow == nil {
+            createSubmenuWindow()
+        }
+        
+        let hostingView = NSHostingView(rootView: content)
+        submenuWindow?.contentView = hostingView
+        
+        positionSubmenuWindow()
+        submenuWindow?.orderFront(nil)
+    }
+    
+    func hideSubmenu() {
+        submenuWindow?.orderOut(nil)
+    }
+    
+    var isSubmenuVisible: Bool {
+        submenuWindow?.isVisible ?? false
+    }
+    
+    private func createSubmenuWindow() {
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: Constants.UI.submenuWidth, height: Constants.UI.submenuMaxHeight),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.titlebarAppearsTransparent = true
+        panel.titleVisibility = .hidden
+        panel.isMovableByWindowBackground = false
+        
+        self.submenuWindow = panel
+    }
+    
+    private func positionSubmenuWindow() {
+        guard let mainWindow = window,
+              let submenuWindow = submenuWindow else { return }
+        
+        let mainFrame = mainWindow.frame
+        var submenuFrame = submenuWindow.frame
+        
+        // Position to the right of main window
+        submenuFrame.origin.x = mainFrame.maxX + 5
+        submenuFrame.origin.y = mainFrame.maxY - submenuFrame.height
+        
+        // Screen bounds check
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            
+            if submenuFrame.maxX > screenFrame.maxX {
+                // Show on left side if no space on right
+                submenuFrame.origin.x = mainFrame.minX - submenuFrame.width - 5
+            }
+            if submenuFrame.minY < screenFrame.minY {
+                submenuFrame.origin.y = screenFrame.minY
+            }
+        }
+        
+        submenuWindow.setFrame(submenuFrame, display: true)
     }
 
     private func createWindow() {
-            let panel = NSPanel(
+        let panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: Constants.UI.popupWidth, height: Constants.UI.popupMaxHeight),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
@@ -133,9 +201,11 @@ class PopupWindowController: NSObject {
     // MARK: - Keyboard Monitoring
     
     private func startKeyboardMonitoring() {
+        stopKeyboardMonitoring()
+        
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if self?.handleKeyEvent(event) == true {
-                return nil // イベントを消費
+                return nil
             }
             return event
         }
@@ -153,6 +223,10 @@ class PopupWindowController: NSObject {
         
         switch keyCode {
         case 53: // Escape
+            if isSubmenuVisible {
+                hideSubmenu()
+                return true
+            }
             hidePopup()
             return true
         case 126: // Up arrow
@@ -170,6 +244,9 @@ class PopupWindowController: NSObject {
         case 36: // Enter
             let _ = onKeyDown?(36)
             return true
+        case 35: // P key
+            let _ = onKeyDown?(35)
+            return true
         default:
             // Number keys 1-9
             if let chars = event.charactersIgnoringModifiers,
@@ -179,5 +256,14 @@ class PopupWindowController: NSObject {
             }
             return false
         }
+    }
+}
+
+
+// MARK: - Keyable Panel
+
+class KeyablePanel: NSPanel {
+    override var canBecomeKey: Bool {
+        return true
     }
 }

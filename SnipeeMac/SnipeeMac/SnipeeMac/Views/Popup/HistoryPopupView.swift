@@ -1,4 +1,3 @@
-
 //
 //  HistoryPopupView.swift
 //  SnipeeMac
@@ -9,105 +8,352 @@ import SwiftUI
 struct HistoryPopupView: View {
     @StateObject private var clipboardService = ClipboardService.shared
     @State private var selectedIndex: Int = 0
+    @State private var isSubmenuOpen: Bool = false
+    @State private var submenuItems: [HistoryItem] = []
+    @State private var submenuSelectedIndex: Int = 0
     
     private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
     
+    private var pinnedItems: [HistoryItem] {
+        clipboardService.history.filter { $0.isPinned }
+    }
+    
+    private var unpinnedItems: [HistoryItem] {
+        clipboardService.history.filter { !$0.isPinned }
+    }
+    
+    private var historyGroups: [[HistoryItem]] {
+        var groups: [[HistoryItem]] = []
+        let items = unpinnedItems
+        
+        // Group 1: 1-15
+        if items.count > 0 {
+            groups.append(Array(items.prefix(15)))
+        }
+        // Group 2: 16-30
+        if items.count > 15 {
+            groups.append(Array(items.dropFirst(15).prefix(15)))
+        }
+        // Group 3: 31-45
+        if items.count > 30 {
+            groups.append(Array(items.dropFirst(30).prefix(15)))
+        }
+        
+        return groups
+    }
+    
+    private var groupLabels: [String] {
+        ["最近 (1-15)", "少し前 (16-30)", "以前 (31-45)"]
+    }
+    
+    private var totalSelectableCount: Int {
+        pinnedItems.count + historyGroups.count + 1 // +1 for clear action
+    }
+    
     var body: some View {
+        mainMenuContent
+            .background(theme.backgroundColor)
+            .cornerRadius(10)
+            .onAppear {
+                setupKeyboardHandler()
+            }
+    }
+    
+    private var mainMenuContent: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("📋 履歴")
-                    .font(.headline)
-                    .foregroundColor(theme.textColor)
+                Text("履歴")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(theme.secondaryTextColor)
                 Spacer()
-                Button(action: { clipboardService.clearHistory() }) {
-                    Text("クリア")
-                        .font(.caption)
-                        .foregroundColor(theme.accentColor)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
+            .background(Color(hex: "e0e0e0"))
             
             Divider()
             
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Pinned items
-                    let pinnedItems = clipboardService.history.filter { $0.isPinned }
-                    if !pinnedItems.isEmpty {
-                        MenuSection(title: "📌 ピン留め", theme: theme)
-                        ForEach(Array(pinnedItems.enumerated()), id: \.element.id) { index, item in
-                            HistoryItemRow(item: item, index: nil, theme: theme) {
-                                pasteItem(item)
-                            } onTogglePin: {
-                                clipboardService.togglePin(for: item)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Pinned items (directly selectable)
+                        if !pinnedItems.isEmpty {
+                            MenuSection(title: "📌 ピン留め", theme: theme)
+                            ForEach(Array(pinnedItems.enumerated()), id: \.element.id) { index, item in
+                                MenuItemRow(
+                                    title: item.content.prefix(30).description,
+                                    icon: "📄",
+                                    isSelected: selectedIndex == index,
+                                    theme: theme
+                                ) {
+                                    pasteItem(item)
+                                }
+                                .id(index)
+                            }
+                            Divider().padding(.vertical, 4)
+                        }
+                        
+                        // History groups
+                        if !historyGroups.isEmpty {
+                            MenuSection(title: "📋 履歴", theme: theme)
+                            ForEach(Array(historyGroups.enumerated()), id: \.offset) { index, group in
+                                let globalIndex = pinnedItems.count + index
+                                MenuItemRow(
+                                    title: groupLabels[index],
+                                    subtitle: "\(group.count)",
+                                    icon: "📁",
+                                    isSelected: selectedIndex == globalIndex,
+                                    hasArrow: true,
+                                    theme: theme
+                                ) {
+                                    openSubmenuForGroup(at: index)
+                                }
+                                .id(globalIndex)
                             }
                         }
+                        
+                        if pinnedItems.isEmpty && historyGroups.isEmpty {
+                            HStack {
+                                Text("📄")
+                                    .frame(width: 14)
+                                    .opacity(0.4)
+                                Text("履歴がありません")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 3)
+                        }
+                        
+                        // Clear action
                         Divider().padding(.vertical, 4)
-                    }
-                    
-                    // All history grouped
-                    let unpinnedItems = clipboardService.history.filter { !$0.isPinned }
-                    
-                    // Group 1: 1-15
-                    let group1 = Array(unpinnedItems.prefix(15))
-                    if !group1.isEmpty {
-                        MenuSection(title: "最近 (1-15)", theme: theme)
-                        ForEach(Array(group1.enumerated()), id: \.element.id) { index, item in
-                            HistoryItemRow(item: item, index: index + 1, theme: theme) {
-                                pasteItem(item)
-                            } onTogglePin: {
-                                clipboardService.togglePin(for: item)
-                            }
+                        let clearIndex = pinnedItems.count + historyGroups.count
+                        MenuItemRow(
+                            title: "履歴をクリア",
+                            icon: "🗑",
+                            isSelected: selectedIndex == clearIndex,
+                            isDestructive: true,
+                            theme: theme
+                        ) {
+                            clipboardService.clearHistory()
                         }
+                        .id(clearIndex)
                     }
-                    
-                    // Group 2: 16-30
-                    let group2 = Array(unpinnedItems.dropFirst(15).prefix(15))
-                    if !group2.isEmpty {
-                        Divider().padding(.vertical, 4)
-                        MenuSection(title: "少し前 (16-30)", theme: theme)
-                        ForEach(Array(group2.enumerated()), id: \.element.id) { index, item in
-                            HistoryItemRow(item: item, index: index + 16, theme: theme) {
-                                pasteItem(item)
-                            } onTogglePin: {
-                                clipboardService.togglePin(for: item)
-                            }
-                        }
-                    }
-                    
-                    // Group 3: 31-45
-                    let group3 = Array(unpinnedItems.dropFirst(30).prefix(15))
-                    if !group3.isEmpty {
-                        Divider().padding(.vertical, 4)
-                        MenuSection(title: "以前 (31-45)", theme: theme)
-                        ForEach(Array(group3.enumerated()), id: \.element.id) { index, item in
-                            HistoryItemRow(item: item, index: index + 31, theme: theme) {
-                                pasteItem(item)
-                            } onTogglePin: {
-                                clipboardService.togglePin(for: item)
-                            }
-                        }
+                    .padding(.vertical, 4)
+                }
+                .onChange(of: selectedIndex) { oldValue, newValue in
+                    withAnimation {
+                        proxy.scrollTo(newValue, anchor: .center)
                     }
                 }
-                .padding(.vertical, 4)
             }
             
             // Footer
             Divider()
-            HStack {
-                Text("↑↓ 移動  Enter 選択  P ピン留め  Esc 閉じる")
-                    .font(.caption2)
-                    .foregroundColor(theme.secondaryTextColor)
+            HStack(spacing: 14) {
+                FooterKey(key: "↑↓", label: "選択")
+                FooterKey(key: "▶", label: "展開")
+                FooterKey(key: "P", label: "ピン")
+                FooterKey(key: "Esc", label: "終了")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
         }
         .frame(width: Constants.UI.popupWidth)
+    }
+    
+    private var submenuContent: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(submenuItems.enumerated()), id: \.element.id) { index, item in
+                            Button(action: { pasteItem(item) }) {
+                                HStack {
+                                    Text("📄")
+                                        .frame(width: 16)
+                                    Text("\(index + 1).")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(submenuSelectedIndex == index ? .white : theme.secondaryTextColor)
+                                        .frame(width: 20)
+                                    Text(item.content.prefix(25).description)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(submenuSelectedIndex == index ? .white : theme.textColor)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    
+                                    Text(item.isPinned ? "●" : "○")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(submenuSelectedIndex == index ? .white : theme.secondaryTextColor)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 3)
+                                .background(submenuSelectedIndex == index ? theme.accentColor : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                            .id(index)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .onChange(of: submenuSelectedIndex) { oldValue, newValue in
+                    withAnimation {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
+            }
+        }
+        .frame(width: Constants.UI.submenuWidth)
+        .frame(maxHeight: Constants.UI.submenuMaxHeight)
         .background(theme.backgroundColor)
-        .cornerRadius(10)
+        .overlay(
+            Rectangle()
+                .frame(width: 1)
+                .foregroundColor(Color.gray.opacity(0.3)),
+            alignment: .leading
+        )
+    }
+    
+    // MARK: - Keyboard Handler
+    
+    private func setupKeyboardHandler() {
+        PopupWindowController.shared.onKeyDown = { [self] keyCode in
+            if isSubmenuOpen {
+                return handleSubmenuKeyDown(keyCode)
+            } else {
+                return handleMainMenuKeyDown(keyCode)
+            }
+        }
+    }
+    
+    private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 126: // Up
+            if selectedIndex > 0 {
+                selectedIndex -= 1
+            }
+            return true
+        case 125: // Down
+            if selectedIndex < totalSelectableCount - 1 {
+                selectedIndex += 1
+            }
+            return true
+        case 124: // Right
+            let groupStartIndex = pinnedItems.count
+            let groupEndIndex = groupStartIndex + historyGroups.count
+            if selectedIndex >= groupStartIndex && selectedIndex < groupEndIndex {
+                openSubmenuForGroup(at: selectedIndex - groupStartIndex)
+            }
+            return true
+        case 36: // Enter
+            executeSelectedItem()
+            return true
+        case 35: // P key
+            togglePinForSelectedItem()
+            return true
+        default:
+            if keyCode >= 101 && keyCode <= 109 {
+                let num = Int(keyCode) - 100
+                if num <= pinnedItems.count {
+                    pasteItem(pinnedItems[num - 1])
+                }
+                return true
+            }
+            return false
+        }
+    }
+    
+    private func handleSubmenuKeyDown(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 126: // Up
+            if submenuSelectedIndex > 0 {
+                submenuSelectedIndex -= 1
+            }
+            return true
+        case 125: // Down
+            if submenuSelectedIndex < submenuItems.count - 1 {
+                submenuSelectedIndex += 1
+            }
+            return true
+        case 123: // Left
+            closeSubmenu()
+            return true
+        case 36: // Enter
+            if submenuSelectedIndex < submenuItems.count {
+                pasteItem(submenuItems[submenuSelectedIndex])
+            }
+            return true
+        case 35: // P key
+            togglePinForSubmenuItem()
+            return true
+        default:
+            if keyCode >= 101 && keyCode <= 109 {
+                let num = Int(keyCode) - 100
+                if num <= submenuItems.count {
+                    pasteItem(submenuItems[num - 1])
+                }
+                return true
+            }
+            return false
+        }
+    }
+    
+    // MARK: - Actions
+    
+    private func executeSelectedItem() {
+        if selectedIndex < pinnedItems.count {
+            pasteItem(pinnedItems[selectedIndex])
+        } else if selectedIndex < pinnedItems.count + historyGroups.count {
+            openSubmenuForGroup(at: selectedIndex - pinnedItems.count)
+        } else {
+            clipboardService.clearHistory()
+        }
+    }
+    
+    private func openSubmenuForGroup(at index: Int) {
+        guard index < historyGroups.count else { return }
+        
+        submenuItems = historyGroups[index]
+        submenuSelectedIndex = 0
+        isSubmenuOpen = true
+        
+        showSubmenuWindow()
+    }
+    
+    private func closeSubmenu() {
+        isSubmenuOpen = false
+        submenuItems = []
+        submenuSelectedIndex = 0
+        
+        PopupWindowController.shared.hideSubmenu()
+    }
+    
+    private func showSubmenuWindow() {
+        let content = HistorySubmenuContent(
+            items: submenuItems,
+            selectedIndex: $submenuSelectedIndex,
+            theme: theme,
+            onSelect: { item in
+                pasteItem(item)
+            },
+            onTogglePin: { item in
+                clipboardService.togglePin(for: item)
+            }
+        )
+        PopupWindowController.shared.showSubmenu(content: content)
+    }
+    
+    private func togglePinForSelectedItem() {
+        guard selectedIndex < pinnedItems.count else { return }
+        let item = pinnedItems[selectedIndex]
+        clipboardService.togglePin(for: item)
+    }
+    
+    private func togglePinForSubmenuItem() {
+        guard submenuSelectedIndex < submenuItems.count else { return }
+        let item = submenuItems[submenuSelectedIndex]
+        clipboardService.togglePin(for: item)
     }
     
     private func pasteItem(_ item: HistoryItem) {
@@ -116,45 +362,60 @@ struct HistoryPopupView: View {
     }
 }
 
-// MARK: - History Item Row
 
-struct HistoryItemRow: View {
-    let item: HistoryItem
-    let index: Int?
+// MARK: - History Submenu Content
+
+struct HistorySubmenuContent: View {
+    let items: [HistoryItem]
+    @Binding var selectedIndex: Int
     let theme: ColorTheme
-    let onSelect: () -> Void
-    let onTogglePin: () -> Void
+    let onSelect: (HistoryItem) -> Void
+    let onTogglePin: (HistoryItem) -> Void
     
     var body: some View {
-        HStack {
-            Button(action: onSelect) {
-                HStack {
-                    if let index = index {
-                        Text("\(index)")
-                            .font(.caption)
-                            .foregroundColor(theme.secondaryTextColor)
-                            .frame(width: 24)
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            Button(action: { onSelect(item) }) {
+                                HStack {
+                                    Text("📄")
+                                        .frame(width: 16)
+                                    Text("\(index + 1).")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(selectedIndex == index ? .white : theme.secondaryTextColor)
+                                        .frame(width: 20)
+                                    Text(item.content.prefix(25).description)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(selectedIndex == index ? .white : theme.textColor)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    
+                                    Text(item.isPinned ? "●" : "○")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(selectedIndex == index ? .white : theme.secondaryTextColor)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 3)
+                                .background(selectedIndex == index ? theme.accentColor : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                            .id(index)
+                        }
                     }
-                    
-                    Text(item.content.prefix(50).description)
-                        .font(.system(size: 13))
-                        .foregroundColor(theme.textColor)
-                        .lineLimit(1)
-                    
-                    Spacer()
+                    .padding(.vertical, 4)
+                }
+                .onChange(of: selectedIndex) { oldValue, newValue in
+                    withAnimation {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
                 }
             }
-            .buttonStyle(.plain)
-            
-            Button(action: onTogglePin) {
-                Image(systemName: item.isPinned ? "pin.fill" : "pin")
-                    .font(.caption)
-                    .foregroundColor(item.isPinned ? theme.accentColor : theme.secondaryTextColor)
-            }
-            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .padding(.horizontal, 4)
+        .frame(width: Constants.UI.submenuWidth)
+        .frame(maxHeight: Constants.UI.submenuMaxHeight)
+        .background(theme.backgroundColor)
+        .cornerRadius(10)
     }
 }
