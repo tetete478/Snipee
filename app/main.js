@@ -23,7 +23,8 @@ app.on('second-instance', () => {
   showClipboardWindow();
 });
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const googleAuth = require('./common/google-auth');
 const sheetsApi = require('./common/sheets-api');
