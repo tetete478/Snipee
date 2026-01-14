@@ -7,3 +7,4 @@ token.txt
 *.pem
 *.key
 credentials.json
+*.xcuserstate
