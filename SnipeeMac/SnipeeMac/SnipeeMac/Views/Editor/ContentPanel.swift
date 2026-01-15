@@ -12,6 +12,7 @@ struct ContentPanel: View {
     @Binding var selectedSnippetId: String?
     var isShowingMaster: Bool
     var onSave: () -> Void
+    var onPromoteToMaster: ((Snippet, String) -> Void)?
     
     @State private var editingTitle = ""
     @State private var editingContent = ""
@@ -63,6 +64,17 @@ struct ContentPanel: View {
                             .padding(.vertical, 4)
                             .contextMenu {
                                 if !isShowingMaster {
+                                    let snippetToPromote = snippet
+                                    Button {
+                                        if let folderName = selectedFolder?.name {
+                                            onPromoteToMaster?(snippetToPromote, folderName)
+                                        }
+                                    } label: {
+                                        Label("マスタに昇格", systemImage: "arrow.up.circle")
+                                    }
+                                    
+                                    Divider()
+                                    
                                     let snippetToDelete = snippet
                                     Button("削除", role: .destructive) {
                                         deleteSnippet(snippetToDelete)
@@ -129,6 +141,19 @@ struct ContentPanel: View {
                         Spacer()
                         
                         if !isShowingMaster {
+                            if let snippet = selectedSnippet, let folderName = selectedFolder?.name {
+                                Button {
+                                    onPromoteToMaster?(snippet, folderName)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.up.circle")
+                                        Text("マスタに昇格")
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(.orange)
+                            }
+                            
                             Button("保存") {
                                 saveSnippet()
                             }

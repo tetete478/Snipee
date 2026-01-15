@@ -14,9 +14,35 @@
 		E5717C7C2F166FA8007299C3 /* SnipeeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipeeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E568EE282F18DFA300D4D585 /* Exceptions for "SnipeeMac" folder in "SnipeeMac" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				".github/workflows/build-mac.yml",
+				"docs/appcast-mac.xml",
+				Info.plist,
+			);
+			target = E5717C7B2F166FA8007299C3 /* SnipeeMac */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		E568EE382F19157000D4D585 /* Exceptions for "SnipeeMac" folder in "Compile Sources" phase from "SnipeeMac" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = E5717C782F166FA8007299C3 /* Sources */;
+			membershipExceptions = (
+				".github/workflows/build-mac.yml",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E5717C7E2F166FA8007299C3 /* SnipeeMac */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E568EE282F18DFA300D4D585 /* Exceptions for "SnipeeMac" folder in "SnipeeMac" target */,
+				E568EE382F19157000D4D585 /* Exceptions for "SnipeeMac" folder in "Compile Sources" phase from "SnipeeMac" target */,
+			);
 			path = SnipeeMac;
 			sourceTree = "<group>";
 		};
@@ -278,6 +304,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnipeeMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Snipee;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -324,6 +351,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnipeeMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Snipee;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_LSUIElement = YES;

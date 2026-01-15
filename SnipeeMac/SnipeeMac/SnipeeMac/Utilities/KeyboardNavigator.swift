@@ -1,72 +1,55 @@
-
 //
-//  KeychainHelper.swift
+//  KeyboardNavigator.swift
 //  SnipeeMac
 //
 
-import Foundation
-import Security
+import AppKit
 
-class KeychainHelper {
-    static let shared = KeychainHelper()
+protocol KeyboardNavigatorDelegate: AnyObject {
+    func navigateUp()
+    func navigateDown()
+    func navigateLeft()
+    func navigateRight()
+    func selectItem()
+    func cancel()
+    func selectNumber(_ number: Int)
+}
+
+class KeyboardNavigator {
+    weak var delegate: KeyboardNavigatorDelegate?
     
-    private let service = Constants.Keychain.service
-    
-    private init() {}
-    
-    func save(_ value: String, for key: String) -> Bool {
-        guard let data = value.data(using: .utf8) else { return false }
+    func handleKeyEvent(_ event: NSEvent) -> Bool {
+        guard let delegate = delegate else { return false }
         
-        // Delete existing item
-        delete(key)
-        
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
-        ]
-        
-        let status = SecItemAdd(query as CFDictionary, nil)
-        return status == errSecSuccess
-    }
-    
-    func get(_ key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            return nil
+        // Number keys 1-9
+        if let characters = event.charactersIgnoringModifiers,
+           let number = Int(characters),
+           number >= 1 && number <= 9 {
+            delegate.selectNumber(number)
+            return true
         }
         
-        return value
-    }
-    
-    @discardableResult
-    func delete(_ key: String) -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
-        
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
-    }
-    
-    func clearAll() {
-        delete(Constants.Keychain.accessToken)
-        delete(Constants.Keychain.refreshToken)
-        delete(Constants.Keychain.userEmail)
+        switch event.keyCode {
+        case 126: // Up arrow
+            delegate.navigateUp()
+            return true
+        case 125: // Down arrow
+            delegate.navigateDown()
+            return true
+        case 123: // Left arrow
+            delegate.navigateLeft()
+            return true
+        case 124: // Right arrow
+            delegate.navigateRight()
+            return true
+        case 36: // Enter
+            delegate.selectItem()
+            return true
+        case 53: // Escape
+            delegate.cancel()
+            return true
+        default:
+            return false
+        }
     }
 }

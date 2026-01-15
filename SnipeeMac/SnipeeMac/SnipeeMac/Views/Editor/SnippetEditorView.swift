@@ -37,7 +37,8 @@ struct SnippetEditorView: View {
                 selectedFolderId: $selectedFolderId,
                 selectedSnippetId: $selectedSnippetId,
                 isShowingMaster: isShowingMaster,
-                onSave: saveData
+                onSave: saveData,
+                onPromoteToMaster: promoteToMaster
             )
             .frame(minWidth: 400)
         }
@@ -89,6 +90,28 @@ struct SnippetEditorView: View {
     private func saveData() {
         StorageService.shared.savePersonalSnippets(personalFolders)
         StorageService.shared.saveMasterSnippets(masterFolders)
+    }
+    
+    private func promoteToMaster(snippet: Snippet, fromFolderName: String) {
+        var targetFolderIndex = masterFolders.firstIndex { $0.name == fromFolderName }
+        
+        if targetFolderIndex == nil {
+            let newFolder = SnippetFolder(
+                name: fromFolderName,
+                snippets: [],
+                order: masterFolders.count
+            )
+            masterFolders.append(newFolder)
+            targetFolderIndex = masterFolders.count - 1
+        }
+        
+        if let index = targetFolderIndex {
+            var newSnippet = snippet
+            newSnippet.type = .master
+            newSnippet.order = masterFolders[index].snippets.count
+            masterFolders[index].snippets.append(newSnippet)
+            saveData()
+        }
     }
     
     private func handleImport(_ result: Result<[URL], Error>) {

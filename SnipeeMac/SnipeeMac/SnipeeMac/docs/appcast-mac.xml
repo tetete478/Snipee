@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Snipee Mac</title>
+    <link>https://tetete478.github.io/snipee/appcast-mac.xml</link>
+    <description>Snipee Mac Updates</description>
+    <language>ja</language>
+    <item>
+      <title>Version 1.0.0</title>
+      <sparkle:version>1.0.0</sparkle:version>
+      <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <pubDate>Thu, 15 Jan 2026 12:00:00 +0900</pubDate>
+      <enclosure
+        url="https://github.com/tetete478/snipee/releases/download/mac-v1.0.0/Snipee-Swift.dmg"
+        sparkle:edSignature=""
+        length="0"
+        type="application/octet-stream"/>
+      <description><![CDATA[
+        <h2>初回リリース</h2>
+        <ul>
+          <li>クリップボード履歴管理</li>
+          <li>スニペット管理</li>
+          <li>Google連携</li>
+        </ul>
+      ]]></description>
+    </item>
+  </channel>
+</rss>

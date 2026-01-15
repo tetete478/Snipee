@@ -262,13 +262,17 @@ struct MainPopupView: View {
     }
     
     private func executeSelectedItem() {
-        let actionStartIndex = pinnedItems.count + recentItems.count
+        let folderStartIndex = pinnedItems.count + recentItems.count
+        let actionStartIndex = folderStartIndex + snippetFolders.count
         
         if selectedIndex < pinnedItems.count {
             pasteItem(pinnedItems[selectedIndex])
-        } else if selectedIndex < actionStartIndex {
+        } else if selectedIndex < folderStartIndex {
             let recentIndex = selectedIndex - pinnedItems.count
             pasteItem(recentItems[recentIndex])
+        } else if selectedIndex < actionStartIndex {
+            // フォルダ選択時はサブメニューを開く
+            openSubmenuForSelectedFolder()
         } else {
             switch selectedIndex - actionStartIndex {
             case 0: // スニペット編集

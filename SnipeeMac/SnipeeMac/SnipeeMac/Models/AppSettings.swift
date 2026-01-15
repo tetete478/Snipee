@@ -26,16 +26,18 @@ struct AppSettings: Codable {
     var hotkeyHistory: HotkeyConfig
     var pasteDelay: Int
     var lastSyncDate: Date?
+    var onboardingCompleted: Bool
     
     init() {
         self.userName = ""
         self.historyMaxCount = 100
         self.autoLogin = true
         self.theme = "silver"
-        self.hotkeyMain = HotkeyConfig(keyCode: 8, modifiers: 0x40101)     // Cmd+Ctrl+C
-        self.hotkeySnippet = HotkeyConfig(keyCode: 9, modifiers: 0x40101) // Cmd+Ctrl+V
-        self.hotkeyHistory = HotkeyConfig(keyCode: 7, modifiers: 0x40101) // Cmd+Ctrl+X
+        self.hotkeyMain = HotkeyConfig(keyCode: 8, modifiers: 0x1100)     // Cmd+Ctrl+C
+        self.hotkeySnippet = HotkeyConfig(keyCode: 9, modifiers: 0x1100) // Cmd+Ctrl+V
+        self.hotkeyHistory = HotkeyConfig(keyCode: 7, modifiers: 0x1100) // Cmd+Ctrl+X
         self.pasteDelay = 50
         self.lastSyncDate = nil
+        self.onboardingCompleted = false
     }
 }

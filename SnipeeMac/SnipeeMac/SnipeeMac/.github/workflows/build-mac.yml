@@ -1,0 +1,74 @@
+name: Build Mac (Swift)
+
+on:
+  push:
+    tags:
+      - 'mac-v*'
+
+jobs:
+  build:
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.2'
+      
+      - name: Import Certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo $CERTIFICATE_BASE64 | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+      
+      - name: Build
+        run: |
+          cd SnipeeMac
+          xcodebuild -project SnipeeMac.xcodeproj \
+            -scheme SnipeeMac \
+            -configuration Release \
+            -archivePath build/SnipeeMac.xcarchive \
+            archive
+      
+      - name: Export
+        run: |
+          cd SnipeeMac
+          xcodebuild -exportArchive \
+            -archivePath build/SnipeeMac.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist ExportOptions.plist
+      
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd SnipeeMac/build/export
+          xcrun notarytool submit Snipee.app.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+          xcrun stapler staple Snipee.app
+      
+      - name: Create DMG
+        run: |
+          cd SnipeeMac/build/export
+          hdiutil create -volname "Snipee" -srcfolder Snipee.app -ov -format UDZO Snipee-Swift.dmg
+      
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: SnipeeMac/build/export/Snipee-Swift.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

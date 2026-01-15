@@ -89,12 +89,54 @@ struct GeneralTab: View {
                         Divider()
                         
                         // Links
-                        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("リンク")
                     .font(.headline)
                 
                 Link("📖 使い方マニュアル", destination: URL(string: "https://github.com/tetete478/snipee")!)
                 Link("🐛 バグ報告", destination: URL(string: "https://github.com/tetete478/snipee/issues")!)
+            }
+            
+            Divider()
+            
+            // Onboarding
+            VStack(alignment: .leading, spacing: 8) {
+                Text("セットアップ")
+                    .font(.headline)
+                
+                Button(action: {
+                    OnboardingWindow.shared.show()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("セットアップを再表示")
+                    }
+                }
+            }
+            
+            Divider()
+            
+            // Update
+            VStack(alignment: .leading, spacing: 8) {
+                Text("アップデート")
+                    .font(.headline)
+                
+                HStack {
+                    Button(action: {
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.checkForUpdates()
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.down.circle")
+                            Text("アップデートを確認")
+                        }
+                    }
+                    
+                    Text("v\(Constants.App.version)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
             Spacer()

@@ -6,27 +6,52 @@
 
 import AppKit
 import SwiftUI
+import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var clipboardService = ClipboardService.shared
     private var hotkeyService = HotkeyService.shared
+    private var syncTimer: Timer?
+    private var updaterController: SPUStandardUpdaterController!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupSparkle()
         setupStatusBar()
         setupHotkeys()
         startServices()
+        setupAutoSync()
         
-        // Check accessibility permission
-        if !HotkeyService.checkAccessibilityPermission() {
-            HotkeyService.requestAccessibilityPermission()
+        // Show onboarding if not completed
+        let settings = StorageService.shared.getSettings()
+        if !settings.onboardingCompleted {
+            OnboardingWindow.shared.show()
+        } else {
+            // Check accessibility permission
+            if !HotkeyService.checkAccessibilityPermission() {
+                HotkeyService.requestAccessibilityPermission()
+            }
         }
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyService.stopListening()
         clipboardService.stopMonitoring()
+        syncTimer?.invalidate()
     }
+    
+    
+    // MARK: - URL Handling
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first,
+              url.scheme == "com.addness.snipeemac" else {
+            return
+        }
+        
+        GoogleAuthService.shared.handleCallback(url: url)
+    }
+    
     
     // MARK: - Status Bar
     
@@ -133,5 +158,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func startServices() {
         clipboardService.startMonitoring()
+    }
+    
+    // MARK: - Auto Sync
+
+    private func setupAutoSync() {
+        // Sync on launch if logged in
+        if GoogleAuthService.shared.isLoggedIn {
+            performSync()
+        }
+        
+        // Setup hourly sync timer
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            self?.performSync()
+        }
+    }
+
+    private func performSync() {
+        guard GoogleAuthService.shared.isLoggedIn else { return }
+        
+        SyncService.shared.syncMasterSnippets { result in
+            switch result {
+            case .success(let syncResult):
+                print("Auto sync success: \(syncResult.folderCount) folders, \(syncResult.snippetCount) snippets")
+            case .failure(let error):
+                print("Auto sync failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // MARK: - Sparkle
+    
+    private func setupSparkle() {
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+    }
+    
+    func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 }

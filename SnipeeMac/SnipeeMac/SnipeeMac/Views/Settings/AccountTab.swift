@@ -1,4 +1,3 @@
-
 //
 //  AccountTab.swift
 //  SnipeeMac
@@ -11,7 +10,10 @@ struct AccountTab: View {
     @State private var userEmail = ""
     @State private var userName = ""
     @State private var userRole = ""
-    @State private var departments: [String] = []
+    @State private var userDepartment = ""
+    @State private var isSyncing = false
+    @State private var lastSyncDate: Date?
+    @State private var syncError: String?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -39,7 +41,7 @@ struct AccountTab: View {
                     
                     HStack {
                         Text("権限:")
-                        Text(userRole)
+                        Text(userRole.isEmpty ? "-" : userRole)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
                             .background(Color.blue.opacity(0.2))
@@ -48,8 +50,48 @@ struct AccountTab: View {
                     
                     HStack {
                         Text("部署:")
-                        Text(departments.joined(separator: ", "))
+                        Text(userDepartment.isEmpty ? "-" : userDepartment)
                             .foregroundColor(.secondary)
+                    }
+                    
+                    Divider()
+                    
+                    // Sync Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Button(action: syncNow) {
+                                HStack {
+                                    if isSyncing {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                    }
+                                    Text(isSyncing ? "同期中..." : "マスタを同期")
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.green)
+                                .foregroundColor(.white)
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isSyncing)
+                            
+                            Spacer()
+                        }
+                        
+                        if let lastSync = lastSyncDate {
+                            Text("最終同期: \(formatDate(lastSync))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if let error = syncError {
+                            Text("エラー: \(error)")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
                     }
                     
                     Divider()
@@ -93,28 +135,96 @@ struct AccountTab: View {
         }
         .onAppear {
             checkLoginStatus()
+            loadCachedInfo()
         }
     }
     
     private func checkLoginStatus() {
-        if let email = KeychainHelper.shared.get(Constants.Keychain.userEmail) {
-            isLoggedIn = true
+        isLoggedIn = GoogleAuthService.shared.isLoggedIn
+        if let email = GoogleAuthService.shared.userEmail {
             userEmail = email
-            // TODO: Load user info from cache
+            userName = email.components(separatedBy: "@").first ?? ""
         }
+        lastSyncDate = StorageService.shared.getSettings().lastSyncDate
+    }
+    
+    private func loadCachedInfo() {
+        let cached = SyncService.shared.getCachedMemberInfo()
+        if let name = cached.name { userName = name }
+        if let dept = cached.department { userDepartment = dept }
+        if let role = cached.role { userRole = role }
     }
     
     private func login() {
-        // TODO: Implement Google OAuth
-        print("Login tapped")
+        GoogleAuthService.shared.startOAuthFlow { result in
+            switch result {
+            case .success:
+                checkLoginStatus()
+                // Fetch member info immediately
+                fetchMemberInfoOnly()
+            case .failure(let error):
+                print("Login failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func fetchMemberInfoOnly() {
+        guard let email = GoogleAuthService.shared.userEmail else {
+            syncNow()
+            return
+        }
+        
+        GoogleSheetsService.shared.fetchMemberInfo(email: email) { result in
+            switch result {
+            case .success(let member):
+                userName = member.name
+                userDepartment = member.department
+                userRole = member.role
+                // Then sync master snippets
+                syncNow()
+            case .failure:
+                // Fallback to sync
+                syncNow()
+            }
+        }
     }
     
     private func logout() {
-        KeychainHelper.shared.clearAll()
+        GoogleAuthService.shared.logout()
+        KeychainHelper.shared.delete("userName")
+        KeychainHelper.shared.delete("userDepartment")
+        KeychainHelper.shared.delete("userRole")
         isLoggedIn = false
         userEmail = ""
         userName = ""
         userRole = ""
-        departments = []
+        userDepartment = ""
+    }
+    
+    private func syncNow() {
+        isSyncing = true
+        syncError = nil
+        
+        SyncService.shared.syncMasterSnippets { result in
+            isSyncing = false
+            
+            switch result {
+            case .success(let syncResult):
+                lastSyncDate = syncResult.syncDate
+                if let name = syncResult.memberName { userName = name }
+                if let dept = syncResult.memberDepartment { userDepartment = dept }
+                if let role = syncResult.memberRole { userRole = role }
+                print("Sync success: \(syncResult.folderCount) folders, \(syncResult.snippetCount) snippets")
+            case .failure(let error):
+                syncError = error.localizedDescription
+                print("Sync failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter.string(from: date)
     }
 }
