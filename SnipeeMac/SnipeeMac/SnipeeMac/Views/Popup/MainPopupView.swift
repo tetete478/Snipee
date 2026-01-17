@@ -10,6 +10,7 @@ struct MainPopupView: View {
     @State private var selectedIndex: Int = 0
     @State private var isSubmenuOpen: Bool = false
     @State private var submenuItems: [Snippet] = []
+    @State private var historySubmenuItems: [HistoryItem] = []
     @State private var submenuSelectedIndex: Int = 0
 
     private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
@@ -18,8 +19,29 @@ struct MainPopupView: View {
         clipboardService.history.filter { $0.isPinned }
     }
     
-    private var recentItems: [HistoryItem] {
-            Array(clipboardService.history.filter { !$0.isPinned }.prefix(15))
+    private var unpinnedItems: [HistoryItem] {
+        clipboardService.history.filter { !$0.isPinned }
+    }
+
+    private var historyGroups: [[HistoryItem]] {
+        var groups: [[HistoryItem]] = []
+        let items = unpinnedItems
+        
+        if items.count > 0 {
+            groups.append(Array(items.prefix(15)))
+        }
+        if items.count > 15 {
+            groups.append(Array(items.dropFirst(15).prefix(15)))
+        }
+        if items.count > 30 {
+            groups.append(Array(items.dropFirst(30).prefix(15)))
+        }
+        
+        return groups
+    }
+
+    private var groupLabels: [String] {
+        ["最近 (1-15)", "少し前 (16-30)", "以前 (31-45)"]
     }
     
     private var snippetFolders: [SnippetFolder] {
@@ -27,13 +49,14 @@ struct MainPopupView: View {
     }
     
     private var totalSelectableCount: Int {
-        pinnedItems.count + recentItems.count + snippetFolders.count + 4 // 4 action items
+        pinnedItems.count + historyGroups.count + snippetFolders.count + 4
     }
     
     var body: some View {
         mainMenuContent
             .background(theme.backgroundColor)
             .cornerRadius(10)
+            .fixedSize(horizontal: false, vertical: true)
             .onAppear {
                 setupKeyboardHandler()
             }
@@ -43,8 +66,8 @@ struct MainPopupView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("履歴")
-                    .font(.system(size: 11, weight: .semibold))
+                Text("Snipee")
+                    .font(.system(size: Constants.FontSize.body, weight: .semibold))
                     .foregroundColor(theme.secondaryTextColor)
                 Spacer()
             }
@@ -74,23 +97,26 @@ struct MainPopupView: View {
                             Divider().padding(.vertical, 4)
                         }
                         
-                        // Recent history (max 5)
-                        if !recentItems.isEmpty {
-                            MenuSection(title: "📝 履歴", theme: theme)
-                            ForEach(Array(recentItems.enumerated()), id: \.element.id) { index, item in
+                        // History groups
+                        if !historyGroups.isEmpty {
+                            MenuSection(title: "📋 履歴", theme: theme)
+                            ForEach(Array(historyGroups.enumerated()), id: \.offset) { index, group in
                                 let globalIndex = pinnedItems.count + index
                                 MenuItemRow(
-                                    title: item.content.prefix(50).description,
-                                    subtitle: "\(index + 1)",
+                                    title: groupLabels[index],
+                                    subtitle: "\(group.count)",
+                                    icon: "📁",
                                     isSelected: selectedIndex == globalIndex,
+                                    hasArrow: true,
                                     theme: theme
                                 ) {
-                                    pasteItem(item)
+                                    openHistorySubmenu(at: index)
                                 }
                                 .id(globalIndex)
                             }
-                            
                         }
+                        
+                        Divider().padding(.vertical, 4)
                         
                         // Snippet folders section
                         MenuSection(title: "スニペット", theme: theme)
@@ -100,14 +126,14 @@ struct MainPopupView: View {
                                     .frame(width: 14)
                                     .opacity(0.4)
                                 Text("スニペットがありません")
-                                    .font(.system(size: 11))
+                                    .font(.system(size: Constants.FontSize.body))
                                     .foregroundColor(.gray)
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 3)
                         } else {
                             ForEach(Array(snippetFolders.enumerated()), id: \.element.id) { index, folder in
-                                let globalIndex = pinnedItems.count + recentItems.count + index
+                                let globalIndex = pinnedItems.count + historyGroups.count + index
                                 MenuItemRow(
                                     title: folder.name,
                                     icon: "📁",
@@ -120,9 +146,11 @@ struct MainPopupView: View {
                                 .id(globalIndex)
                             }
                         }
+                                                
+                        Divider().padding(.vertical, 4)
                         
                         // Actions
-                        let actionStartIndex = pinnedItems.count + recentItems.count + snippetFolders.count
+                        let actionStartIndex = pinnedItems.count + historyGroups.count + snippetFolders.count
                         MenuSection(title: "⚙️ アクション", theme: theme)
                         
                         MenuItemRow(title: "スニペット編集", icon: "✏️", isSelected: selectedIndex == actionStartIndex, theme: theme) {
@@ -134,7 +162,7 @@ struct MainPopupView: View {
                         .id(actionStartIndex)
                         
                         MenuItemRow(title: "履歴をクリア", icon: "🗑", isSelected: selectedIndex == actionStartIndex + 1, theme: theme) {
-                            clipboardService.clearHistory()
+                            confirmClearHistory()
                         }
                         .id(actionStartIndex + 1)
                         
@@ -147,7 +175,7 @@ struct MainPopupView: View {
                         .id(actionStartIndex + 2)
                         
                         MenuItemRow(title: "Snipeeを終了", icon: "×", isSelected: selectedIndex == actionStartIndex + 3, isDestructive: true, theme: theme) {
-                            NSApp.terminate(nil)
+                            confirmQuitApp()
                         }
                         .id(actionStartIndex + 3)
                     }
@@ -200,17 +228,21 @@ struct MainPopupView: View {
     private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
         switch keyCode {
         case 126: // Up
-            if selectedIndex > 0 {
-                selectedIndex -= 1
-            }
+            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: -1, count: totalSelectableCount)
             return true
         case 125: // Down
-            if selectedIndex < totalSelectableCount - 1 {
-                selectedIndex += 1
-            }
+            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: 1, count: totalSelectableCount)
             return true
         case 124: // Right - サブメニュー展開
-            openSubmenuForSelectedFolder()
+            let historyStartIndex = pinnedItems.count
+            let historyEndIndex = historyStartIndex + historyGroups.count
+            let folderEndIndex = historyEndIndex + snippetFolders.count
+            
+            if selectedIndex >= historyStartIndex && selectedIndex < historyEndIndex {
+                openHistorySubmenu(at: selectedIndex - historyStartIndex)
+            } else if selectedIndex >= historyEndIndex && selectedIndex < folderEndIndex {
+                openSubmenuForSelectedFolder()
+            }
             return true
         case 36: // Enter
             executeSelectedItem()
@@ -218,10 +250,8 @@ struct MainPopupView: View {
         default:
             if keyCode >= 101 && keyCode <= 109 {
                 let num = Int(keyCode) - 100
-                let targetIndex = pinnedItems.count + num - 1
-                if targetIndex < pinnedItems.count + recentItems.count {
-                    let item = recentItems[num - 1]
-                    pasteItem(item)
+                if num <= pinnedItems.count {
+                    pasteItem(pinnedItems[num - 1])
                 }
                 return true
             }
@@ -230,30 +260,49 @@ struct MainPopupView: View {
     }
 
     private func handleSubmenuKeyDown(_ keyCode: UInt16) -> Bool {
+        let isHistorySubmenu = !historySubmenuItems.isEmpty
+        let itemCount = isHistorySubmenu ? historySubmenuItems.count : submenuItems.count
+        
         switch keyCode {
         case 126: // Up
             if submenuSelectedIndex > 0 {
                 submenuSelectedIndex -= 1
+            } else {
+                submenuSelectedIndex = itemCount - 1
             }
             return true
         case 125: // Down
-            if submenuSelectedIndex < submenuItems.count - 1 {
+            if submenuSelectedIndex < itemCount - 1 {
                 submenuSelectedIndex += 1
+            } else {
+                submenuSelectedIndex = 0
             }
             return true
         case 123: // Left - サブメニュー閉じる
             closeSubmenu()
             return true
         case 36: // Enter
-            if submenuSelectedIndex < submenuItems.count {
-                pasteSnippet(submenuItems[submenuSelectedIndex])
+            if isHistorySubmenu {
+                if submenuSelectedIndex < historySubmenuItems.count {
+                    pasteItem(historySubmenuItems[submenuSelectedIndex])
+                }
+            } else {
+                if submenuSelectedIndex < submenuItems.count {
+                    pasteSnippet(submenuItems[submenuSelectedIndex])
+                }
             }
             return true
         default:
             if keyCode >= 101 && keyCode <= 109 {
                 let num = Int(keyCode) - 100
-                if num <= submenuItems.count {
-                    pasteSnippet(submenuItems[num - 1])
+                if isHistorySubmenu {
+                    if num <= historySubmenuItems.count {
+                        pasteItem(historySubmenuItems[num - 1])
+                    }
+                } else {
+                    if num <= submenuItems.count {
+                        pasteSnippet(submenuItems[num - 1])
+                    }
                 }
                 return true
             }
@@ -262,33 +311,33 @@ struct MainPopupView: View {
     }
     
     private func executeSelectedItem() {
-        let folderStartIndex = pinnedItems.count + recentItems.count
-        let actionStartIndex = folderStartIndex + snippetFolders.count
-        
-        if selectedIndex < pinnedItems.count {
-            pasteItem(pinnedItems[selectedIndex])
-        } else if selectedIndex < folderStartIndex {
-            let recentIndex = selectedIndex - pinnedItems.count
-            pasteItem(recentItems[recentIndex])
-        } else if selectedIndex < actionStartIndex {
+    let historyEndIndex = pinnedItems.count + historyGroups.count
+    let folderEndIndex = historyEndIndex + snippetFolders.count
+    
+    if selectedIndex < pinnedItems.count {
+        pasteItem(pinnedItems[selectedIndex])
+    } else if selectedIndex < historyEndIndex {
+        let groupIndex = selectedIndex - pinnedItems.count
+        openHistorySubmenu(at: groupIndex)
+    } else if selectedIndex < folderEndIndex {
             // フォルダ選択時はサブメニューを開く
             openSubmenuForSelectedFolder()
         } else {
-            switch selectedIndex - actionStartIndex {
+            switch selectedIndex - folderEndIndex {
             case 0: // スニペット編集
                 PopupWindowController.shared.hidePopup()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     SnippetEditorWindow.shared.show()
                 }
             case 1: // 履歴をクリア
-                clipboardService.clearHistory()
+                confirmClearHistory()
             case 2: // 設定
                 PopupWindowController.shared.hidePopup()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     NSApp.sendAction(Selector(("openSettings")), to: nil, from: nil)
                 }
             case 3: // 終了
-                NSApp.terminate(nil)
+                confirmQuitApp()
             default:
                 break
             }
@@ -307,7 +356,7 @@ struct MainPopupView: View {
     }
 
     private func openSubmenuForSelectedFolder() {
-        let folderStartIndex = pinnedItems.count + recentItems.count
+        let folderStartIndex = pinnedItems.count + historyGroups.count
         let folderEndIndex = folderStartIndex + snippetFolders.count
         
         guard selectedIndex >= folderStartIndex && selectedIndex < folderEndIndex else { return }
@@ -325,9 +374,61 @@ struct MainPopupView: View {
     private func closeSubmenu() {
         isSubmenuOpen = false
         submenuItems = []
+        historySubmenuItems = []
         submenuSelectedIndex = 0
         
         PopupWindowController.shared.hideSubmenu()
+    }
+    
+    private func confirmClearHistory() {
+        let alert = NSAlert()
+        alert.messageText = "履歴をクリア"
+        alert.informativeText = "すべての履歴を削除しますか？"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "クリア")
+        alert.addButton(withTitle: "キャンセル")
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            clipboardService.clearHistory()
+        }
+    }
+
+    private func confirmQuitApp() {
+        let alert = NSAlert()
+        alert.messageText = "Snipeeを終了"
+        alert.informativeText = "Snipeeを終了しますか？"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "終了")
+        alert.addButton(withTitle: "キャンセル")
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSApp.terminate(nil)
+        }
+    }
+    
+    private func openHistorySubmenu(at index: Int) {
+        guard index < historyGroups.count else { return }
+        
+        historySubmenuItems = historyGroups[index]
+        submenuSelectedIndex = 0
+        isSubmenuOpen = true
+        
+        showHistorySubmenuWindow()
+    }
+
+    private func showHistorySubmenuWindow() {
+        let content = HistorySubmenuContent(
+            items: historySubmenuItems,
+            selectedIndex: $submenuSelectedIndex,
+            theme: theme,
+            onSelect: { item in
+                pasteItem(item)
+            },
+            onTogglePin: { item in
+                clipboardService.togglePin(for: item)
+            }
+        )
+        PopupWindowController.shared.showSubmenu(content: content)
     }
 }
 
@@ -340,8 +441,7 @@ struct MenuSection: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.caption)
-                .fontWeight(.semibold)
+                .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                 .foregroundColor(theme.secondaryTextColor)
             Spacer()
         }
@@ -368,10 +468,11 @@ struct MenuItemRow: View {
                 if let icon = icon {
                     Text(icon)
                         .frame(width: 20)
+                        .foregroundColor(isSelected ? .white : (isDestructive ? .red : theme.textColor))
                 }
                 
                 Text(title)
-                    .font(.system(size: 11))
+                    .font(.system(size: Constants.FontSize.body))
                     .foregroundColor(isSelected ? .white : (isDestructive ? .red : theme.textColor))
                     .lineLimit(1)
                 
@@ -379,19 +480,19 @@ struct MenuItemRow: View {
                 
                 if let subtitle = subtitle {
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.system(size: Constants.FontSize.caption))
                         .foregroundColor(isSelected ? .white : theme.secondaryTextColor)
                         .frame(width: 20)
                 }
                 
                 if hasArrow {
                     Text(">")
-                        .font(.system(size: 10))
+                        .font(.system(size: Constants.FontSize.caption))
                         .foregroundColor(isSelected ? .white : .gray)
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 3)
+            .padding(.vertical, 4)
             .background(isSelected ? theme.accentColor : Color.clear)
         }
         .buttonStyle(.plain)
@@ -409,7 +510,8 @@ struct FooterKey: View {
     var body: some View {
         VStack(spacing: 2) {
             Text(key)
-                .font(.system(size: 8, design: .monospaced))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.black)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
                 .background(Color.white)
@@ -419,7 +521,7 @@ struct FooterKey: View {
                         .stroke(Color.gray.opacity(0.5), lineWidth: 1)
                 )
             Text(label)
-                .font(.system(size: 9))
+                .font(.system(size: Constants.FontSize.caption))
                 .foregroundColor(.gray)
         }
     }
@@ -439,17 +541,29 @@ struct SubmenuWindowContent: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 0) {
+                        if items.isEmpty {
+                            HStack {
+                                Text("📄")
+                                    .frame(width: 16)
+                                    .opacity(0.4)
+                                Text("スニペットがありません")
+                                    .font(.system(size: Constants.FontSize.body))
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                        }
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, snippet in
                             Button(action: { onSelect(snippet) }) {
                                 HStack {
                                     Text("📄")
                                         .frame(width: 16)
                                     Text("\(index + 1).")
-                                        .font(.system(size: 11))
+                                        .font(.system(size: Constants.FontSize.caption))
                                         .foregroundColor(selectedIndex == index ? .white : theme.secondaryTextColor)
                                         .frame(width: 20)
                                     Text(snippet.title.prefix(25).description)
-                                        .font(.system(size: 11))
+                                        .font(.system(size: Constants.FontSize.caption))
                                         .foregroundColor(selectedIndex == index ? .white : theme.textColor)
                                         .lineLimit(1)
                                     Spacer()
@@ -472,7 +586,6 @@ struct SubmenuWindowContent: View {
             }
         }
         .frame(width: Constants.UI.submenuWidth)
-        .frame(maxHeight: Constants.UI.submenuMaxHeight)
         .background(theme.backgroundColor)
         .cornerRadius(10)
     }

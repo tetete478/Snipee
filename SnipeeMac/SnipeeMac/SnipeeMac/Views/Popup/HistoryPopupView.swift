@@ -64,7 +64,7 @@ struct HistoryPopupView: View {
             // Header
             HStack {
                 Text("履歴")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                     .foregroundColor(theme.secondaryTextColor)
                 Spacer()
             }
@@ -119,11 +119,11 @@ struct HistoryPopupView: View {
                                     .frame(width: 14)
                                     .opacity(0.4)
                                 Text("履歴がありません")
-                                    .font(.system(size: 11))
+                                    .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                                     .foregroundColor(.gray)
                             }
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 3)
+                            .padding(.vertical, 4)
                         }
                         
                         // Clear action
@@ -136,7 +136,7 @@ struct HistoryPopupView: View {
                             isDestructive: true,
                             theme: theme
                         ) {
-                            clipboardService.clearHistory()
+                            confirmClearHistory()
                         }
                         .id(clearIndex)
                     }
@@ -174,21 +174,21 @@ struct HistoryPopupView: View {
                                     Text("📄")
                                         .frame(width: 16)
                                     Text("\(index + 1).")
-                                        .font(.system(size: 11))
+                                        .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                                         .foregroundColor(submenuSelectedIndex == index ? .white : theme.secondaryTextColor)
                                         .frame(width: 20)
                                     Text(item.content.prefix(25).description)
-                                        .font(.system(size: 11))
+                                        .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                                         .foregroundColor(submenuSelectedIndex == index ? .white : theme.textColor)
                                         .lineLimit(1)
                                     Spacer()
                                     
                                     Text(item.isPinned ? "●" : "○")
-                                        .font(.system(size: 10))
+                                        .font(.system(size: Constants.FontSize.caption))
                                         .foregroundColor(submenuSelectedIndex == index ? .white : theme.secondaryTextColor)
                                 }
                                 .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
+                                .padding(.vertical, 4)
                                 .background(submenuSelectedIndex == index ? theme.accentColor : Color.clear)
                             }
                             .buttonStyle(.plain)
@@ -230,14 +230,10 @@ struct HistoryPopupView: View {
     private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
         switch keyCode {
         case 126: // Up
-            if selectedIndex > 0 {
-                selectedIndex -= 1
-            }
+            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: -1, count: totalSelectableCount)
             return true
         case 125: // Down
-            if selectedIndex < totalSelectableCount - 1 {
-                selectedIndex += 1
-            }
+            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: 1, count: totalSelectableCount)
             return true
         case 124: // Right
             let groupStartIndex = pinnedItems.count
@@ -269,11 +265,15 @@ struct HistoryPopupView: View {
         case 126: // Up
             if submenuSelectedIndex > 0 {
                 submenuSelectedIndex -= 1
+            } else {
+                submenuSelectedIndex = submenuItems.count - 1
             }
             return true
         case 125: // Down
             if submenuSelectedIndex < submenuItems.count - 1 {
                 submenuSelectedIndex += 1
+            } else {
+                submenuSelectedIndex = 0
             }
             return true
         case 123: // Left
@@ -307,7 +307,7 @@ struct HistoryPopupView: View {
         } else if selectedIndex < pinnedItems.count + historyGroups.count {
             openSubmenuForGroup(at: selectedIndex - pinnedItems.count)
         } else {
-            clipboardService.clearHistory()
+            confirmClearHistory()
         }
     }
     
@@ -360,6 +360,19 @@ struct HistoryPopupView: View {
         PopupWindowController.shared.hidePopup()
         PasteService.shared.pasteText(item.content)
     }
+    
+    private func confirmClearHistory() {
+        let alert = NSAlert()
+        alert.messageText = "履歴をクリア"
+        alert.informativeText = "すべての履歴を削除しますか？"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "クリア")
+        alert.addButton(withTitle: "キャンセル")
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            clipboardService.clearHistory()
+        }
+    }
 }
 
 
@@ -383,21 +396,21 @@ struct HistorySubmenuContent: View {
                                     Text("📄")
                                         .frame(width: 16)
                                     Text("\(index + 1).")
-                                        .font(.system(size: 11))
+                                        .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                                         .foregroundColor(selectedIndex == index ? .white : theme.secondaryTextColor)
                                         .frame(width: 20)
                                     Text(item.content.prefix(25).description)
-                                        .font(.system(size: 11))
+                                        .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                                         .foregroundColor(selectedIndex == index ? .white : theme.textColor)
                                         .lineLimit(1)
                                     Spacer()
                                     
                                     Text(item.isPinned ? "●" : "○")
-                                        .font(.system(size: 10))
+                                        .font(.system(size: Constants.FontSize.caption))
                                         .foregroundColor(selectedIndex == index ? .white : theme.secondaryTextColor)
                                 }
                                 .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
+                                .padding(.vertical, 4)
                                 .background(selectedIndex == index ? theme.accentColor : Color.clear)
                             }
                             .buttonStyle(.plain)
@@ -414,7 +427,6 @@ struct HistorySubmenuContent: View {
             }
         }
         .frame(width: Constants.UI.submenuWidth)
-        .frame(maxHeight: Constants.UI.submenuMaxHeight)
         .background(theme.backgroundColor)
         .cornerRadius(10)
     }

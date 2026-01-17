@@ -22,6 +22,9 @@ class PopupWindowController: NSObject {
     
     var onKeyDown: ((UInt16) -> Bool)?
     
+    private var submenuOffset: NSPoint = .zero
+    private var isUpdatingPosition: Bool = false
+    
     private override init() {
         super.init()
     }
@@ -63,12 +66,30 @@ class PopupWindowController: NSObject {
         let hostingView = NSHostingView(rootView: content)
         submenuWindow?.contentView = hostingView
         
+        // コンテンツサイズに応じてサブメニューサイズを調整
+        let fittingSize = hostingView.fittingSize
+        let height = min(fittingSize.height, Constants.UI.submenuMaxHeight)
+        submenuWindow?.setContentSize(NSSize(width: Constants.UI.submenuWidth, height: height))
+        
         positionSubmenuWindow()
         submenuWindow?.orderFront(nil)
     }
     
     func hideSubmenu() {
-        submenuWindow?.orderOut(nil)
+        guard let submenu = submenuWindow else { return }
+        
+        // 子ウィンドウ解除
+        if let parent = submenu.parent {
+            parent.removeChildWindow(submenu)
+        }
+        
+        // 確実に閉じる
+        submenu.orderOut(nil)
+        
+        // 次のランループで再確認
+        DispatchQueue.main.async {
+            submenu.orderOut(nil)
+        }
     }
     
     var isSubmenuVisible: Bool {
@@ -91,8 +112,15 @@ class PopupWindowController: NSObject {
         panel.hasShadow = true
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        panel.isMovableByWindowBackground = false
+        panel.isMovableByWindowBackground = true
         
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(submenuDidMove),
+            name: NSWindow.didMoveNotification,
+            object: panel
+        )
+
         self.submenuWindow = panel
     }
     
@@ -104,23 +132,34 @@ class PopupWindowController: NSObject {
         var submenuFrame = submenuWindow.frame
         
         // Position to the right of main window
-        submenuFrame.origin.x = mainFrame.maxX + 5
+        submenuFrame.origin.x = mainFrame.maxX - 1
         submenuFrame.origin.y = mainFrame.maxY - submenuFrame.height
         
-        // Screen bounds check
-        if let screen = NSScreen.main {
+        // Screen bounds check - メインウィンドウが現在いるスクリーンを使用
+        if let screen = mainWindow.screen ?? NSScreen.main {
             let screenFrame = screen.visibleFrame
             
             if submenuFrame.maxX > screenFrame.maxX {
                 // Show on left side if no space on right
-                submenuFrame.origin.x = mainFrame.minX - submenuFrame.width - 5
+                submenuFrame.origin.x = mainFrame.minX - submenuFrame.width + 1
             }
             if submenuFrame.minY < screenFrame.minY {
                 submenuFrame.origin.y = screenFrame.minY
             }
         }
         
+        // オフセットを最終位置で保存
+        submenuOffset = NSPoint(
+            x: submenuFrame.origin.x - mainFrame.origin.x,
+            y: submenuFrame.origin.y - mainFrame.origin.y
+        )
+        
         submenuWindow.setFrame(submenuFrame, display: true)
+                
+        // 子ウィンドウとして追加（自動追従）
+        if submenuWindow.parent == nil {
+            mainWindow.addChildWindow(submenuWindow, ordered: .above)
+        }
     }
 
     private func createWindow() {
@@ -139,7 +178,7 @@ class PopupWindowController: NSObject {
         panel.hasShadow = true
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        panel.isMovableByWindowBackground = false
+        panel.isMovableByWindowBackground = true
         
         NotificationCenter.default.addObserver(
             self,
@@ -147,12 +186,27 @@ class PopupWindowController: NSObject {
             name: NSWindow.didResignKeyNotification,
             object: panel
         )
-        
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidMove),
+            name: NSWindow.didMoveNotification,
+            object: panel
+        )
+
         self.window = panel
     }
     
     @objc private func windowDidResignKey() {
         hidePopup()
+    }
+    
+    @objc private func windowDidMove() {
+        // 子ウィンドウで自動追従するため不要
+    }
+
+    @objc private func submenuDidMove() {
+        // 子ウィンドウで自動追従するため不要
     }
     
     private func updateContent(type: PopupType) {
@@ -168,6 +222,11 @@ class PopupWindowController: NSObject {
         
         let hostingView = NSHostingView(rootView: view)
         window?.contentView = hostingView
+        
+        // コンテンツサイズに応じてウィンドウサイズを調整
+        let fittingSize = hostingView.fittingSize
+        let height = min(fittingSize.height, Constants.UI.popupMaxHeight)
+        window?.setContentSize(NSSize(width: Constants.UI.popupWidth, height: height))
     }
     
     private func positionWindow() {

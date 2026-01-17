@@ -34,8 +34,8 @@ class SnippetEditorWindow {
         let newWindow = NSWindow(contentViewController: hostingController)
         newWindow.title = "スニペット編集"
         newWindow.styleMask = [NSWindow.StyleMask.titled, NSWindow.StyleMask.closable, NSWindow.StyleMask.resizable, NSWindow.StyleMask.miniaturizable]
-        newWindow.setContentSize(NSSize(width: 900, height: 600))
-        newWindow.minSize = NSSize(width: 700, height: 400)
+        newWindow.setContentSize(NSSize(width: 1100, height: 700))
+        newWindow.minSize = NSSize(width: 900, height: 500)
         newWindow.center()
         
         self.window = newWindow

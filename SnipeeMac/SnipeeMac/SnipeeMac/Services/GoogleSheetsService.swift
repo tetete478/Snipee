@@ -3,7 +3,7 @@
 //  SnipeeMac
 //
 
-import Foundation
+@preconcurrency import Foundation
 
 class GoogleSheetsService {
     static let shared = GoogleSheetsService()
@@ -148,7 +148,7 @@ struct MemberInfo {
     let role: String
 }
 
-struct SheetResponse: Codable {
+struct SheetResponse: Codable, Sendable {
     let values: [[String]]?
 }
 

@@ -3,7 +3,7 @@
 //  SnipeeMac
 //
 
-import Foundation
+@preconcurrency import Foundation
 import AppKit
 import CryptoKit
 

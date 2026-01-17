@@ -28,6 +28,7 @@ struct SnippetPopupView: View {
         mainMenuContent
             .background(theme.backgroundColor)
             .cornerRadius(10)
+            .fixedSize(horizontal: false, vertical: true)
             .onAppear {
                 loadSnippets()
                 setupKeyboardHandler()
@@ -39,7 +40,7 @@ struct SnippetPopupView: View {
             // Header
             HStack {
                 Text("スニペット")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: Constants.FontSize.caption, weight: .semibold))
                     .foregroundColor(theme.secondaryTextColor)
                 Spacer()
             }
@@ -93,7 +94,7 @@ struct SnippetPopupView: View {
                                     .frame(width: 14)
                                     .opacity(0.4)
                                 Text("スニペットがありません")
-                                    .font(.system(size: 11))
+                                    .font(.system(size: Constants.FontSize.caption))
                                     .foregroundColor(.gray)
                             }
                             .padding(.horizontal, 12)
@@ -137,17 +138,29 @@ struct SnippetPopupView: View {
     }
     
     private var submenuContent: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(Array(submenuItems.enumerated()), id: \.element.id) { index, snippet in
+            VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            if submenuItems.isEmpty {
+                                HStack {
+                                    Text("📄")
+                                        .frame(width: 16)
+                                        .opacity(0.4)
+                                    Text("スニペットがありません")
+                                        .font(.system(size: Constants.FontSize.body))
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                            }
+                            ForEach(Array(submenuItems.enumerated()), id: \.element.id) { index, snippet in
                             Button(action: { pasteSnippet(snippet) }) {
                                 HStack {
                                     Text("📄")
                                         .frame(width: 16)
                                     Text("\(index + 1).")
-                                        .font(.system(size: 11))
+                                        .font(.system(size: Constants.FontSize.caption))
                                         .foregroundColor(submenuSelectedIndex == index ? .white : theme.secondaryTextColor)
                                         .frame(width: 20)
                                     Text(snippet.title.prefix(25).description)
@@ -157,7 +170,7 @@ struct SnippetPopupView: View {
                                     Spacer()
                                 }
                                 .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
+                                .padding(.vertical, 4)
                                 .background(submenuSelectedIndex == index ? theme.accentColor : Color.clear)
                             }
                             .buttonStyle(.plain)
@@ -174,7 +187,6 @@ struct SnippetPopupView: View {
             }
         }
         .frame(width: Constants.UI.submenuWidth)
-        .frame(maxHeight: Constants.UI.submenuMaxHeight)
         .background(theme.backgroundColor)
         .overlay(
             Rectangle()
@@ -206,14 +218,10 @@ struct SnippetPopupView: View {
     private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
         switch keyCode {
         case 126: // Up
-            if selectedIndex > 0 {
-                selectedIndex -= 1
-            }
+            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: -1, count: totalSelectableCount)
             return true
         case 125: // Down
-            if selectedIndex < totalSelectableCount - 1 {
-                selectedIndex += 1
-            }
+            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: 1, count: totalSelectableCount)
             return true
         case 124: // Right
             if selectedIndex < allFolders.count {
@@ -241,11 +249,15 @@ struct SnippetPopupView: View {
         case 126: // Up
             if submenuSelectedIndex > 0 {
                 submenuSelectedIndex -= 1
+            } else {
+                submenuSelectedIndex = submenuItems.count - 1
             }
             return true
         case 125: // Down
             if submenuSelectedIndex < submenuItems.count - 1 {
                 submenuSelectedIndex += 1
+            } else {
+                submenuSelectedIndex = 0
             }
             return true
         case 123: // Left

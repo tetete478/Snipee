@@ -20,8 +20,8 @@ jobs:
       
       - name: Import Certificate
         env:
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          CERTIFICATE_BASE64: ${{ secrets.CSC_LINK }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: |
           echo $CERTIFICATE_BASE64 | base64 --decode > certificate.p12
           security create-keychain -p "" build.keychain
@@ -50,10 +50,11 @@ jobs:
       - name: Notarize
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           cd SnipeeMac/build/export
+          ditto -c -k --keepParent Snipee.app Snipee.app.zip
           xcrun notarytool submit Snipee.app.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \

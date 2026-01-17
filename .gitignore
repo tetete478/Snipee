@@ -12,6 +12,7 @@ out/
 .AppleDouble
 .LSOverride
 ._*
+desktop.ini
 
 # Xcode
 *.xcuserstate
@@ -32,6 +33,7 @@ DerivedData/
 
 # Logs
 *.log
+debug.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -52,6 +54,9 @@ HANDOVER.md
 Swift.md
 TODO.md
 NOTES.md
+UPDATE_PLAN.md
+Bundle.txt
+Bundle 2.txt
 
 # Temporary files
 *.tmp
@@ -64,3 +69,7 @@ Thumbs.db
 
 # Test
 coverage/
+
+# Syncthing
+.stfolder/
+.stignore

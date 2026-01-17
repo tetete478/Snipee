@@ -47,4 +47,12 @@ enum Constants {
         static let maxCount = 100
         static let groupSize = 15
     }
+    
+    enum FontSize {
+        static let small: CGFloat = 11    // 注釈
+        static let caption: CGFloat = 12    // セクション、カウント、説明
+        static let body: CGFloat = 13       // メニューアイテム、本文
+        static let title: CGFloat = 16      // 見出し
+        static let large: CGFloat = 20      // 大見出し
+    }
 }

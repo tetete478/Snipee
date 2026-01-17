@@ -1,4 +1,3 @@
-
 //
 //  ContentPanel.swift
 //  SnipeeMac
@@ -13,12 +12,12 @@ struct ContentPanel: View {
     var isShowingMaster: Bool
     var onSave: () -> Void
     var onPromoteToMaster: ((Snippet, String) -> Void)?
+    var onAddSnippet: (() -> Void)?
     
     @State private var editingTitle = ""
     @State private var editingContent = ""
-    @State private var isAddingSnippet = false
-    
-    private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
+    @State private var editingDescription = ""
+    @State private var isDescriptionVisible = true
     
     var selectedFolder: SnippetFolder? {
         folders.first { $0.id == selectedFolderId }
@@ -29,170 +28,209 @@ struct ContentPanel: View {
     }
     
     var body: some View {
-        HSplitView {
-            // Snippet List
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text(selectedFolder?.name ?? "スニペット")
-                        .font(.headline)
-                    Spacer()
-                    if !isShowingMaster {
-                        Button(action: { isAddingSnippet = true }) {
-                            Image(systemName: "plus")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding()
+        VStack(spacing: 0) {
+            if selectedSnippet != nil {
+                // ツールバー
+                editorToolbar
                 
                 Divider()
                 
-                // List
-                if let folder = selectedFolder {
-                    List(selection: $selectedSnippetId) {
-                        ForEach(folder.snippets) { snippet in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(snippet.title)
-                                    .fontWeight(.medium)
-                                Text(snippet.content.prefix(50).description)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                            }
-                            .tag(snippet.id)
-                            .padding(.vertical, 4)
-                            .contextMenu {
-                                if !isShowingMaster {
-                                    let snippetToPromote = snippet
-                                    Button {
-                                        if let folderName = selectedFolder?.name {
-                                            onPromoteToMaster?(snippetToPromote, folderName)
-                                        }
-                                    } label: {
-                                        Label("マスタに昇格", systemImage: "arrow.up.circle")
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    let snippetToDelete = snippet
-                                    Button("削除", role: .destructive) {
-                                        deleteSnippet(snippetToDelete)
-                                    }
-                                }
-                            }
-                        }
-                        .onMove { from, to in
-                            if !isShowingMaster {
-                                moveSnippet(from: from, to: to)
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                } else {
-                    Spacer()
-                    Text("フォルダを選択してください")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
+                // タイトル
+                titleSection
                 
                 Divider()
                 
-                // Footer
-                HStack {
-                    Text("\(selectedFolder?.snippets.count ?? 0) スニペット")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-                .padding(8)
+                // コンテンツ + 説明
+                contentSection
+                
+                Divider()
+                
+                // フッター
+                editorFooter
+            } else {
+                emptyState
             }
-            .frame(minWidth: 200, maxWidth: 250)
-            
-            // Editor
-            VStack(spacing: 0) {
-                if selectedSnippet != nil {
-                    // Title
-                    HStack {
-                        TextField("タイトル", text: $editingTitle)
-                            .textFieldStyle(.plain)
-                            .font(.title2)
-                            .disabled(isShowingMaster)
-                        Spacer()
-                    }
-                    .padding()
-                    
-                    Divider()
-                    
-                    // Content
-                    TextEditor(text: $editingContent)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(8)
-                        .disabled(isShowingMaster)
-                    
-                    Divider()
-                    
-                    // Footer
-                    HStack {
-                        Text("\(editingContent.count) 文字")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                        
-                        if !isShowingMaster {
-                            if let snippet = selectedSnippet, let folderName = selectedFolder?.name {
-                                Button {
-                                    onPromoteToMaster?(snippet, folderName)
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "arrow.up.circle")
-                                        Text("マスタに昇格")
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundColor(.orange)
-                            }
-                            
-                            Button("保存") {
-                                saveSnippet()
-                            }
-                            .disabled(editingTitle.isEmpty)
-                        }
-                    }
-                    .padding(8)
-                } else {
-                    Spacer()
-                    VStack(spacing: 8) {
-                        Image(systemName: "doc.text")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("スニペットを選択してください")
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                }
-            }
-            .frame(minWidth: 300)
         }
+        .background(Color(.windowBackgroundColor))
         .onChange(of: selectedSnippetId) { oldValue, newValue in
             loadSnippet()
         }
-        .sheet(isPresented: $isAddingSnippet) {
-            AddSnippetSheet(
-                onAdd: addSnippet,
-                onCancel: { isAddingSnippet = false }
-            )
+    }
+    
+    // MARK: - Editor Toolbar
+    
+    private var editorToolbar: some View {
+        HStack {
+            if let folder = selectedFolder {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 12))
+                    Text(folder.name)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(.secondaryLabelColor))
+                }
+            }
+            
+            Spacer()
+            
+            if !isShowingMaster {
+                Button(action: { onAddSnippet?() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("新規スニペット")
+                    }
+                    .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.windowBackgroundColor))
+    }
+    
+    // MARK: - Title Section
+    
+    private var titleSection: some View {
+        HStack {
+            TextField("タイトル", text: $editingTitle)
+                .textFieldStyle(.plain)
+                .font(.title2)
+                .foregroundColor(Color(.labelColor))
+                .disabled(isShowingMaster)
+            
+            Spacer()
+            
+            // 説明トグルボタン
+            Button(action: { isDescriptionVisible.toggle() }) {
+                Image(systemName: isDescriptionVisible ? "sidebar.right" : "sidebar.left")
+                    .foregroundColor(Color(.secondaryLabelColor))
+            }
+            .buttonStyle(.plain)
+            .help(isDescriptionVisible ? "説明を隠す" : "説明を表示")
+        }
+        .padding()
+        .background(Color(.windowBackgroundColor))
+    }
+    
+    // MARK: - Content Section
+    
+    private var contentSection: some View {
+        HStack(spacing: 0) {
+            // メインコンテンツ
+            TextEditor(text: $editingContent)
+                .font(.system(.body, design: .monospaced))
+                .padding(8)
+                .scrollContentBackground(.hidden)
+                .background(Color(.textBackgroundColor))
+                .disabled(isShowingMaster)
+            
+            // 説明パネル
+            if isDescriptionVisible {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("説明")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(.secondaryLabelColor))
+                        .padding(.horizontal, 8)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
+                    
+                    TextEditor(text: $editingDescription)
+                        .font(.system(size: 12))
+                        .padding(4)
+                        .scrollContentBackground(.hidden)
+                        .background(Color(.textBackgroundColor))
+                        .disabled(isShowingMaster)
+                }
+                .frame(width: 200)
+                .background(Color(.controlBackgroundColor))
+            }
         }
     }
+    
+    // MARK: - Editor Footer
+    
+    private var editorFooter: some View {
+        HStack {
+            Text("\(editingContent.count) 文字")
+                .font(.system(size: 11))
+                .foregroundColor(Color(.secondaryLabelColor))
+            
+            Spacer()
+            
+            if !isShowingMaster {
+                // マスタに昇格ボタン
+                if let snippet = selectedSnippet, let folderName = selectedFolder?.name {
+                    Button {
+                        onPromoteToMaster?(snippet, folderName)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.circle")
+                            Text("マスタに昇格")
+                        }
+                        .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.orange)
+                }
+                
+                // 保存ボタン
+                Button("保存") {
+                    saveSnippet()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(editingTitle.isEmpty)
+            }
+        }
+        .padding(8)
+        .background(Color(.windowBackgroundColor))
+    }
+    
+    // MARK: - Empty State
+    
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            
+            Image(systemName: "doc.text")
+                .font(.system(size: 48))
+                .foregroundColor(Color(.tertiaryLabelColor))
+            
+            Text("スニペットを選択してください")
+                .font(.system(size: 14))
+                .foregroundColor(Color(.secondaryLabelColor))
+            
+            if !isShowingMaster {
+                Button(action: { onAddSnippet?() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("新規スニペット作成")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+            }
+            
+            Spacer()
+        }
+    }
+    
+    // MARK: - Actions
     
     private func loadSnippet() {
         if let snippet = selectedSnippet {
             editingTitle = snippet.title
             editingContent = snippet.content
+            editingDescription = snippet.description ?? ""
         } else {
             editingTitle = ""
             editingContent = ""
+            editingDescription = ""
         }
     }
     
@@ -204,81 +242,7 @@ struct ContentPanel: View {
         
         folders[folderIndex].snippets[snippetIndex].title = editingTitle
         folders[folderIndex].snippets[snippetIndex].content = editingContent
+        folders[folderIndex].snippets[snippetIndex].description = editingDescription.isEmpty ? nil : editingDescription
         onSave()
-    }
-    
-    private func addSnippet(title: String, content: String) {
-        guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }) else {
-            return
-        }
-        
-        let newSnippet = Snippet(
-            title: title,
-            content: content,
-            folder: folders[folderIndex].name,
-            type: .personal,
-            order: folders[folderIndex].snippets.count
-        )
-        
-        folders[folderIndex].snippets.append(newSnippet)
-        selectedSnippetId = newSnippet.id
-        isAddingSnippet = false
-        onSave()
-    }
-    
-    private func deleteSnippet(_ snippet: Snippet) {
-        guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }) else {
-            return
-        }
-        
-        folders[folderIndex].snippets.removeAll { $0.id == snippet.id }
-        selectedSnippetId = folders[folderIndex].snippets.first?.id
-        onSave()
-    }
-    
-    private func moveSnippet(from: IndexSet, to: Int) {
-        guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }) else {
-            return
-        }
-        
-        folders[folderIndex].snippets.move(fromOffsets: from, toOffset: to)
-        onSave()
-    }
-}
-
-// MARK: - Add Snippet Sheet
-
-struct AddSnippetSheet: View {
-    var onAdd: (String, String) -> Void
-    var onCancel: () -> Void
-    
-    @State private var title = ""
-    @State private var content = ""
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("新しいスニペット")
-                .font(.headline)
-            
-            TextField("タイトル", text: $title)
-                .textFieldStyle(.roundedBorder)
-            
-            TextEditor(text: $content)
-                .frame(height: 150)
-                .border(Color.gray.opacity(0.3))
-            
-            HStack {
-                Button("キャンセル", action: onCancel)
-                    .keyboardShortcut(.escape)
-                
-                Button("追加") {
-                    onAdd(title, content)
-                }
-                .keyboardShortcut(.return)
-                .disabled(title.isEmpty)
-            }
-        }
-        .padding()
-        .frame(width: 400, height: 300)
     }
 }
