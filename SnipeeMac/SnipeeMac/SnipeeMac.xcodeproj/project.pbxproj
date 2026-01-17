@@ -18,7 +18,6 @@
 		E568EE282F18DFA300D4D585 /* Exceptions for "SnipeeMac" folder in "SnipeeMac" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				".github/workflows/build-mac.yml",
 				"docs/appcast-mac.xml",
 				Info.plist,
 			);
@@ -26,22 +25,11 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		E568EE382F19157000D4D585 /* Exceptions for "SnipeeMac" folder in "Compile Sources" phase from "SnipeeMac" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = E5717C782F166FA8007299C3 /* Sources */;
-			membershipExceptions = (
-				".github/workflows/build-mac.yml",
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E5717C7E2F166FA8007299C3 /* SnipeeMac */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E568EE282F18DFA300D4D585 /* Exceptions for "SnipeeMac" folder in "SnipeeMac" target */,
-				E568EE382F19157000D4D585 /* Exceptions for "SnipeeMac" folder in "Compile Sources" phase from "SnipeeMac" target */,
 			);
 			path = SnipeeMac;
 			sourceTree = "<group>";

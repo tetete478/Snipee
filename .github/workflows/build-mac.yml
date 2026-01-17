@@ -32,7 +32,7 @@ jobs:
       
       - name: Build
         run: |
-          cd SnipeeMac
+          cd SnipeeMac/SnipeeMac
           xcodebuild -project SnipeeMac.xcodeproj \
             -scheme SnipeeMac \
             -configuration Release \
@@ -41,11 +41,11 @@ jobs:
       
       - name: Export
         run: |
-          cd SnipeeMac
+          cd SnipeeMac/SnipeeMac
           xcodebuild -exportArchive \
             -archivePath build/SnipeeMac.xcarchive \
             -exportPath build/export \
-            -exportOptionsPlist ExportOptions.plist
+            -exportOptionsPlist SnipeeMac/ExportOptions.plist
       
       - name: Notarize
         env:
@@ -53,23 +53,23 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          cd SnipeeMac/build/export
-          ditto -c -k --keepParent Snipee.app Snipee.app.zip
-          xcrun notarytool submit Snipee.app.zip \
+          cd SnipeeMac/SnipeeMac/build/export
+          ditto -c -k --keepParent SnipeeMac.app SnipeeMac.app.zip
+          xcrun notarytool submit SnipeeMac.app.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \
             --team-id "$TEAM_ID" \
             --wait
-          xcrun stapler staple Snipee.app
+          xcrun stapler staple SnipeeMac.app
       
       - name: Create DMG
         run: |
-          cd SnipeeMac/build/export
-          hdiutil create -volname "Snipee" -srcfolder Snipee.app -ov -format UDZO Snipee-Swift.dmg
+          cd SnipeeMac/SnipeeMac/build/export
+          hdiutil create -volname "Snipee" -srcfolder SnipeeMac.app -ov -format UDZO Snipee-Swift.dmg
       
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
-          files: SnipeeMac/build/export/Snipee-Swift.dmg
+          files: SnipeeMac/SnipeeMac/build/export/Snipee-Swift.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
