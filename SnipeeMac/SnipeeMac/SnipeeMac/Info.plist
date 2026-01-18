@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>SUFeedURL</key>
-	<string>https://tetete478.github.io/snipee/appcast-mac.xml</string>
+	<string>https://tetete478.github.io/Snipee/appcast-mac.xml</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
