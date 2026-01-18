@@ -18,7 +18,6 @@
 		E568EE282F18DFA300D4D585 /* Exceptions for "SnipeeMac" folder in "SnipeeMac" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"docs/appcast-mac.xml",
 				Info.plist,
 			);
 			target = E5717C7B2F166FA8007299C3 /* SnipeeMac */;
