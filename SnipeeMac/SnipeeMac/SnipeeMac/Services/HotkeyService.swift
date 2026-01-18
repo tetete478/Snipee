@@ -1,4 +1,3 @@
-
 //
 //  HotkeyService.swift
 //  SnipeeMac
@@ -10,98 +9,135 @@ import Carbon
 class HotkeyService {
     static let shared = HotkeyService()
     
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var mainHotkeyRef: EventHotKeyRef?
+    private var snippetHotkeyRef: EventHotKeyRef?
+    private var historyHotkeyRef: EventHotKeyRef?
     
     var onMainHotkey: (() -> Void)?
     var onSnippetHotkey: (() -> Void)?
     var onHistoryHotkey: (() -> Void)?
     
-    private init() {}
+    private static let mainHotkeyID = UInt32(1)
+    private static let snippetHotkeyID = UInt32(2)
+    private static let historyHotkeyID = UInt32(3)
+    
+    private init() {
+        setupEventHandler()
+    }
+    
+    private func setupEventHandler() {
+        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { (_, event, _) -> OSStatus in
+                var hotkeyID = EventHotKeyID()
+                GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hotkeyID
+                )
+                
+                switch hotkeyID.id {
+                case HotkeyService.mainHotkeyID:
+                    DispatchQueue.main.async { HotkeyService.shared.onMainHotkey?() }
+                case HotkeyService.snippetHotkeyID:
+                    DispatchQueue.main.async { HotkeyService.shared.onSnippetHotkey?() }
+                case HotkeyService.historyHotkeyID:
+                    DispatchQueue.main.async { HotkeyService.shared.onHistoryHotkey?() }
+                default:
+                    break
+                }
+                
+                return noErr
+            },
+            1,
+            &eventType,
+            nil,
+            nil
+        )
+    }
     
     func startListening() {
-        let eventMask = (1 << CGEventType.keyDown.rawValue)
+        let settings = StorageService.shared.getSettings()
         
-        eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(eventMask),
-            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
-                guard let refcon = refcon else { return Unmanaged.passRetained(event) }
-                let service = Unmanaged<HotkeyService>.fromOpaque(refcon).takeUnretainedValue()
-                return service.handleEvent(proxy: proxy, type: type, event: event)
-            },
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        registerHotkey(
+            config: settings.hotkeyMain,
+            id: Self.mainHotkeyID,
+            ref: &mainHotkeyRef
         )
         
-        guard let eventTap = eventTap else {
-            print("Failed to create event tap. Check accessibility permissions.")
-            return
-        }
+        registerHotkey(
+            config: settings.hotkeySnippet,
+            id: Self.snippetHotkeyID,
+            ref: &snippetHotkeyRef
+        )
         
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-        CGEvent.tapEnable(tap: eventTap, enable: true)
+        registerHotkey(
+            config: settings.hotkeyHistory,
+            id: Self.historyHotkeyID,
+            ref: &historyHotkeyRef
+        )
     }
     
     func stopListening() {
-        if let eventTap = eventTap {
-            CGEvent.tapEnable(tap: eventTap, enable: false)
-        }
-        if let runLoopSource = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-        }
-        eventTap = nil
-        runLoopSource = nil
+        unregisterHotkey(&mainHotkeyRef)
+        unregisterHotkey(&snippetHotkeyRef)
+        unregisterHotkey(&historyHotkeyRef)
     }
     
-    private func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard type == .keyDown else { return Unmanaged.passRetained(event) }
-        
-        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-        let flags = event.flags
-        
-        let settings = StorageService.shared.getSettings()
-        
-        // Main hotkey
-        if matchesHotkey(keyCode: keyCode, flags: flags, config: settings.hotkeyMain) {
-            DispatchQueue.main.async { self.onMainHotkey?() }
-            return nil
-        }
-        
-        // Snippet hotkey
-        if matchesHotkey(keyCode: keyCode, flags: flags, config: settings.hotkeySnippet) {
-            DispatchQueue.main.async { self.onSnippetHotkey?() }
-            return nil
-        }
-        
-        // History hotkey
-        if matchesHotkey(keyCode: keyCode, flags: flags, config: settings.hotkeyHistory) {
-            DispatchQueue.main.async { self.onHistoryHotkey?() }
-            return nil
-        }
-        
-        return Unmanaged.passRetained(event)
+    func reloadHotkeys() {
+        stopListening()
+        startListening()
     }
     
-    private func matchesHotkey(keyCode: UInt16, flags: CGEventFlags, config: HotkeyConfig) -> Bool {
-        guard keyCode == config.keyCode else { return false }
+    private func registerHotkey(config: HotkeyConfig, id: UInt32, ref: inout EventHotKeyRef?) {
+        var hotkeyID = EventHotKeyID(signature: OSType(0x534E5045), id: id) // 'SNPE'
         
-        let hasCmd = flags.contains(.maskCommand)
-        let hasCtrl = flags.contains(.maskControl)
-        let hasAlt = flags.contains(.maskAlternate)
-        let hasShift = flags.contains(.maskShift)
+        let carbonModifiers = carbonModifierFlags(from: config.modifiers)
         
-        let configHasCmd = config.modifiers & UInt(cmdKey) != 0
-        let configHasCtrl = config.modifiers & UInt(controlKey) != 0
-        let configHasAlt = config.modifiers & UInt(optionKey) != 0
-        let configHasShift = config.modifiers & UInt(shiftKey) != 0
+        let status = RegisterEventHotKey(
+            UInt32(config.keyCode),
+            carbonModifiers,
+            hotkeyID,
+            GetApplicationEventTarget(),
+            0,
+            &ref
+        )
         
-        return hasCmd == configHasCmd &&
-               hasCtrl == configHasCtrl &&
-               hasAlt == configHasAlt &&
-               hasShift == configHasShift
+        if status != noErr {
+            print("Failed to register hotkey \(id): \(status)")
+        }
+    }
+    
+    private func unregisterHotkey(_ ref: inout EventHotKeyRef?) {
+        if let hotkeyRef = ref {
+            UnregisterEventHotKey(hotkeyRef)
+            ref = nil
+        }
+    }
+    
+    private func carbonModifierFlags(from modifiers: UInt) -> UInt32 {
+        var carbonFlags: UInt32 = 0
+        
+        if modifiers & UInt(cmdKey) != 0 {
+            carbonFlags |= UInt32(cmdKey)
+        }
+        if modifiers & UInt(controlKey) != 0 {
+            carbonFlags |= UInt32(controlKey)
+        }
+        if modifiers & UInt(optionKey) != 0 {
+            carbonFlags |= UInt32(optionKey)
+        }
+        if modifiers & UInt(shiftKey) != 0 {
+            carbonFlags |= UInt32(shiftKey)
+        }
+        
+        return carbonFlags
     }
     
     static func checkAccessibilityPermission() -> Bool {
