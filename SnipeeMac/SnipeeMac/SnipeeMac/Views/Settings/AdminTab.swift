@@ -155,7 +155,7 @@ struct AdminTab: View {
     private func loadData() {
         let cached = SyncService.shared.getCachedMemberInfo()
         if let role = cached.role {
-            isAdmin = (role == "管理者")
+            isAdmin = (role == "管理者" || role == "最高管理者")
         }
         if let dept = cached.department {
             userDepartment = dept
