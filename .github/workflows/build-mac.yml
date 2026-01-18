@@ -37,7 +37,10 @@ jobs:
             -scheme SnipeeMac \
             -configuration Release \
             -archivePath build/SnipeeMac.xcarchive \
-            archive
+            archive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
       
       - name: Export
         run: |
