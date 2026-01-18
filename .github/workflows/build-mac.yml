@@ -38,9 +38,10 @@ jobs:
             -configuration Release \
             -archivePath build/SnipeeMac.xcarchive \
             archive \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM=F8KR53ZN3Y \
+            OTHER_CODE_SIGN_FLAGS="--options runtime"
       
       - name: Export
         run: |
