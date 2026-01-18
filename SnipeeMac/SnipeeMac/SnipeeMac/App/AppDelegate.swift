@@ -29,10 +29,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startServices()
         setupAutoSync()
         
-        // Show onboarding if not completed
-        let settings = StorageService.shared.getSettings()
-        if !settings.onboardingCompleted {
-            OnboardingWindow.shared.show()
+        // Show welcome wizard if not completed
+        if !UserDefaults.standard.bool(forKey: "welcomeCompleted") {
+            showWelcomeWindow()
         } else {
             // Check accessibility permission
             if !HotkeyService.checkAccessibilityPermission() {
@@ -129,6 +128,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+    
+    // MARK: - Welcome Window
+    
+    private func showWelcomeWindow() {
+        let welcomeView = WelcomeView()
+        let hostingController = NSHostingController(rootView: welcomeView)
+        
+        let welcomeWindow = NSWindow(contentViewController: hostingController)
+        welcomeWindow.title = "ようこそ - Snipee"
+        welcomeWindow.styleMask = [.titled, .closable, .fullSizeContentView]
+        welcomeWindow.titlebarAppearsTransparent = true
+        welcomeWindow.titleVisibility = .hidden
+        welcomeWindow.isMovableByWindowBackground = true
+        welcomeWindow.backgroundColor = .clear
+        welcomeWindow.center()
+        welcomeWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     // MARK: - Hotkeys
