@@ -58,11 +58,18 @@ jobs:
         run: |
           cd SnipeeMac/SnipeeMac/build/export
           ditto -c -k --keepParent SnipeeMac.app SnipeeMac.app.zip
-          xcrun notarytool submit SnipeeMac.app.zip \
+          SUBMISSION_OUTPUT=$(xcrun notarytool submit SnipeeMac.app.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \
             --team-id "$TEAM_ID" \
-            --wait
+            --wait 2>&1) || true
+          echo "$SUBMISSION_OUTPUT"
+          SUBMISSION_ID=$(echo "$SUBMISSION_OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
+          echo "Submission ID: $SUBMISSION_ID"
+          xcrun notarytool log "$SUBMISSION_ID" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$TEAM_ID"
           xcrun stapler staple SnipeeMac.app
       
       - name: Create DMG
