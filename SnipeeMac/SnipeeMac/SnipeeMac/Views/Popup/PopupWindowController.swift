@@ -104,15 +104,7 @@ class PopupWindowController: NSObject {
             defer: false
         )
         
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
-        panel.isMovableByWindowBackground = true
+        Constants.UI.configurePopupPanel(panel)
         
         NotificationCenter.default.addObserver(
             self,
@@ -170,15 +162,7 @@ class PopupWindowController: NSObject {
             defer: false
         )
         
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
-        panel.isMovableByWindowBackground = true
+        Constants.UI.configurePopupPanel(panel)
         
         NotificationCenter.default.addObserver(
             self,

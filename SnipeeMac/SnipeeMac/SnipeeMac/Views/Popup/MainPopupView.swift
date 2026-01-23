@@ -45,7 +45,7 @@ struct MainPopupView: View {
     }
     
     private var snippetFolders: [SnippetFolder] {
-        StorageService.shared.getPersonalSnippets() + StorageService.shared.getMasterSnippets()
+        StorageService.shared.getMasterSnippets() + StorageService.shared.getPersonalSnippets()
     }
     
     private var totalSelectableCount: Int {

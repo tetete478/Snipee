@@ -16,13 +16,12 @@ struct FolderSidebar: View {
     
     @State private var isAddingFolder = false
     @State private var newFolderName = ""
-    @State private var expandedFolderIds: Set<String> = []
+    @State private var expandedMasterFolderIds: Set<String> = []
+    @State private var expandedPersonalFolderIds: Set<String> = []
     @State private var draggingSnippet: Snippet?
     @State private var draggingFolder: SnippetFolder?
-    
-    private var folders: [SnippetFolder] {
-        isShowingMaster ? masterFolders : personalFolders
-    }
+    @State private var isMasterSectionExpanded: Bool = true
+    @State private var isPersonalSectionExpanded: Bool = true
     
     var body: some View {
         VStack(spacing: 0) {
@@ -32,65 +31,117 @@ struct FolderSidebar: View {
                     .font(.headline)
                     .foregroundColor(Color(.labelColor))
                 Spacer()
-                if !isShowingMaster {
-                    Button(action: { isAddingFolder = true }) {
-                        Image(systemName: "folder.badge.plus")
-                            .foregroundColor(Color(.labelColor))
-                    }
-                    .buttonStyle(.plain)
+                Button(action: { isAddingFolder = true }) {
+                    Image(systemName: "folder.badge.plus")
+                        .foregroundColor(Color(.labelColor))
                 }
+                .buttonStyle(.plain)
+                .help("個別フォルダを追加")
             }
             .padding()
             .background(Color(.windowBackgroundColor))
             
             Divider()
             
-            // Segment Control
-            Picker("", selection: $isShowingMaster) {
-                Text("個別").tag(false)
-                Text("マスタ").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.windowBackgroundColor))
-            
-            Divider()
-            
-            // 階層式リスト
+            // 階層式リスト（マスタ + 個別）
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(folders) { folder in
-                        FolderRow(
-                            folder: folder,
-                            isExpanded: expandedFolderIds.contains(folder.id),
-                            selectedSnippetId: $selectedSnippetId,
-                            isShowingMaster: isShowingMaster,
-                            draggingSnippet: $draggingSnippet,
-                            onToggle: { toggleFolder(folder.id) },
-                            onSelectSnippet: { snippet in
-                                selectedFolderId = folder.id
-                                selectedSnippetId = snippet.id
-                            },
-                            onDeleteFolder: { deleteFolder(folder) },
-                            onDeleteSnippet: { snippet in
-                                deleteSnippet(snippet, from: folder)
-                            },
-                            onMoveSnippet: { from, to in
-                                moveSnippet(in: folder, from: from, to: to)
-                            }
-                        )
-                        .onDrag {
-                            self.draggingFolder = folder
-                            self.expandedFolderIds.removeAll()
-                            return NSItemProvider(object: folder.id as NSString)
+                    // MARK: - マスタセクション
+                    SectionHeader(
+                        title: "マスタ",
+                        count: masterFolders.count,
+                        isExpanded: isMasterSectionExpanded,
+                        onToggle: { isMasterSectionExpanded.toggle() }
+                    )
+                    
+                    if isMasterSectionExpanded {
+                        ForEach(masterFolders) { folder in
+                            FolderRow(
+                                folder: folder,
+                                isExpanded: expandedMasterFolderIds.contains(folder.id),
+                                selectedSnippetId: $selectedSnippetId,
+                                isShowingMaster: true,
+                                draggingSnippet: $draggingSnippet,
+                                onToggle: { toggleMasterFolder(folder.id) },
+                                onSelectSnippet: { snippet in
+                                    isShowingMaster = true
+                                    selectedFolderId = folder.id
+                                    selectedSnippetId = snippet.id
+                                },
+                                onDeleteFolder: { },
+                                onDeleteSnippet: { _ in },
+                                onMoveSnippet: { from, to in
+                                    moveMasterSnippet(in: folder, from: from, to: to)
+                                }
+                            )
                         }
-                        .onDrop(of: [.text], delegate: FolderDropDelegate(
-                            folder: folder,
-                            folders: isShowingMaster ? $masterFolders : $personalFolders,
-                            draggingFolder: $draggingFolder,
-                            onSave: onSave
-                        ))
+                        
+                        if masterFolders.isEmpty {
+                            Text("マスタスニペットがありません")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(.tertiaryLabelColor))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                        }
+                    }
+                    
+                    // MARK: - セパレーター
+                    Rectangle()
+                        .fill(Color(.separatorColor))
+                        .frame(height: 2)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 8)
+                    
+                    // MARK: - 個別セクション
+                    SectionHeader(
+                        title: "個別",
+                        count: personalFolders.count,
+                        isExpanded: isPersonalSectionExpanded,
+                        onToggle: { isPersonalSectionExpanded.toggle() }
+                    )
+                    
+                    if isPersonalSectionExpanded {
+                        ForEach(personalFolders) { folder in
+                            FolderRow(
+                                folder: folder,
+                                isExpanded: expandedPersonalFolderIds.contains(folder.id),
+                                selectedSnippetId: $selectedSnippetId,
+                                isShowingMaster: false,
+                                draggingSnippet: $draggingSnippet,
+                                onToggle: { togglePersonalFolder(folder.id) },
+                                onSelectSnippet: { snippet in
+                                    isShowingMaster = false
+                                    selectedFolderId = folder.id
+                                    selectedSnippetId = snippet.id
+                                },
+                                onDeleteFolder: { deleteFolder(folder) },
+                                onDeleteSnippet: { snippet in
+                                    deleteSnippet(snippet, from: folder)
+                                },
+                                onMoveSnippet: { from, to in
+                                    movePersonalSnippet(in: folder, from: from, to: to)
+                                }
+                            )
+                            .onDrag {
+                                self.draggingFolder = folder
+                                self.expandedPersonalFolderIds.removeAll()
+                                return NSItemProvider(object: folder.id as NSString)
+                            }
+                            .onDrop(of: [.text], delegate: FolderDropDelegate(
+                                folder: folder,
+                                folders: $personalFolders,
+                                draggingFolder: $draggingFolder,
+                                onSave: onSave
+                            ))
+                        }
+                        
+                        if personalFolders.isEmpty {
+                            Text("個別スニペットがありません")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(.tertiaryLabelColor))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                        }
                     }
                 }
                 .padding(.vertical, 4)
@@ -101,7 +152,7 @@ struct FolderSidebar: View {
             
             // Footer
             HStack {
-                Text("\(folders.count) フォルダ")
+                Text("\(masterFolders.count + personalFolders.count) フォルダ")
                     .font(.system(size: 11))
                     .foregroundColor(Color(.secondaryLabelColor))
                 Spacer()
@@ -119,51 +170,59 @@ struct FolderSidebar: View {
         }
         .onAppear {
             // 最初のフォルダを展開
-            if let firstFolder = folders.first {
-                expandedFolderIds.insert(firstFolder.id)
+            if let firstMaster = masterFolders.first {
+                expandedMasterFolderIds.insert(firstMaster.id)
             }
-        }
-        .onChange(of: isShowingMaster) { _, _ in
-            // 切り替え時に最初のフォルダを展開
-            expandedFolderIds.removeAll()
-            if let firstFolder = folders.first {
-                expandedFolderIds.insert(firstFolder.id)
+            if let firstPersonal = personalFolders.first {
+                expandedPersonalFolderIds.insert(firstPersonal.id)
             }
         }
     }
     
-    private func toggleFolder(_ folderId: String) {
-        if expandedFolderIds.contains(folderId) {
-            expandedFolderIds.remove(folderId)
+    // MARK: - Toggle Functions
+    
+    private func toggleMasterFolder(_ folderId: String) {
+        if expandedMasterFolderIds.contains(folderId) {
+            expandedMasterFolderIds.remove(folderId)
         } else {
-            expandedFolderIds.insert(folderId)
+            expandedMasterFolderIds.insert(folderId)
         }
     }
+    
+    private func togglePersonalFolder(_ folderId: String) {
+        if expandedPersonalFolderIds.contains(folderId) {
+            expandedPersonalFolderIds.remove(folderId)
+        } else {
+            expandedPersonalFolderIds.insert(folderId)
+        }
+    }
+    
+    // MARK: - Folder Actions
     
     private func addFolder() {
         guard !newFolderName.isEmpty else { return }
         let newFolder = SnippetFolder(name: newFolderName, order: personalFolders.count)
         personalFolders.append(newFolder)
         selectedFolderId = newFolder.id
-        expandedFolderIds.insert(newFolder.id)
+        isShowingMaster = false
+        expandedPersonalFolderIds.insert(newFolder.id)
         newFolderName = ""
         isAddingFolder = false
         onSave()
     }
     
     private func deleteFolder(_ folder: SnippetFolder) {
-        guard !isShowingMaster else { return }
         personalFolders.removeAll { $0.id == folder.id }
-        expandedFolderIds.remove(folder.id)
+        expandedPersonalFolderIds.remove(folder.id)
         if selectedFolderId == folder.id {
             selectedFolderId = personalFolders.first?.id
             selectedSnippetId = personalFolders.first?.snippets.first?.id
+            isShowingMaster = false
         }
         onSave()
     }
     
     private func deleteSnippet(_ snippet: Snippet, from folder: SnippetFolder) {
-        guard !isShowingMaster else { return }
         guard let folderIndex = personalFolders.firstIndex(where: { $0.id == folder.id }) else { return }
         personalFolders[folderIndex].snippets.removeAll { $0.id == snippet.id }
         if selectedSnippetId == snippet.id {
@@ -172,15 +231,57 @@ struct FolderSidebar: View {
         onSave()
     }
     
-    private func moveSnippet(in folder: SnippetFolder, from: IndexSet, to: Int) {
-        if isShowingMaster {
-            guard let folderIndex = masterFolders.firstIndex(where: { $0.id == folder.id }) else { return }
-            masterFolders[folderIndex].snippets.move(fromOffsets: from, toOffset: to)
-        } else {
-            guard let folderIndex = personalFolders.firstIndex(where: { $0.id == folder.id }) else { return }
-            personalFolders[folderIndex].snippets.move(fromOffsets: from, toOffset: to)
-        }
+    // MARK: - Move Snippets
+    
+    private func moveMasterSnippet(in folder: SnippetFolder, from: IndexSet, to: Int) {
+        guard let folderIndex = masterFolders.firstIndex(where: { $0.id == folder.id }) else { return }
+        masterFolders[folderIndex].snippets.move(fromOffsets: from, toOffset: to)
         onSave()
+    }
+    
+    private func movePersonalSnippet(in folder: SnippetFolder, from: IndexSet, to: Int) {
+        guard let folderIndex = personalFolders.firstIndex(where: { $0.id == folder.id }) else { return }
+        personalFolders[folderIndex].snippets.move(fromOffsets: from, toOffset: to)
+        onSave()
+    }
+}
+
+// MARK: - Section Header
+
+struct SectionHeader: View {
+    let title: String
+    let count: Int
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(Color(.secondaryLabelColor))
+                .frame(width: 12)
+            
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Color(.secondaryLabelColor))
+            
+            Spacer()
+            
+            Text("\(count)")
+                .font(.system(size: 10))
+                .foregroundColor(Color(.tertiaryLabelColor))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color(.separatorColor).opacity(0.5))
+                .cornerRadius(4)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color(.windowBackgroundColor).opacity(0.5))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onToggle()
+        }
     }
 }
 
@@ -234,6 +335,9 @@ struct FolderRow: View {
         VStack(spacing: 0) {
             // フォルダ行
             HStack(spacing: 6) {
+                // インデント
+                Color.clear.frame(width: 8)
+                
                 // 折りたたみ矢印
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
@@ -337,7 +441,7 @@ struct SnippetRow: View {
     var body: some View {
         HStack(spacing: 6) {
             // インデント用スペース
-            Color.clear.frame(width: 20)
+            Color.clear.frame(width: 28)
             
             Image(systemName: "doc.text")
                 .foregroundColor(Color(.secondaryLabelColor))

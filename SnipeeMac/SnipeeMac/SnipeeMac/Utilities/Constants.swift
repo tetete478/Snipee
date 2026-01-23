@@ -5,6 +5,7 @@
 //
 
 import Foundation
+import AppKit
 
 enum Constants {
     enum App {
@@ -41,6 +42,28 @@ enum Constants {
         static let submenuWidth: CGFloat = 280
         static let submenuMaxHeight: CGFloat = 650
         static let expandedPopupWidth: CGFloat = 470
+        
+        static func configurePopupPanel(_ panel: NSPanel) {
+            panel.isFloatingPanel = true
+            panel.level = .floating
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            panel.titlebarAppearsTransparent = true
+            panel.titleVisibility = .hidden
+            panel.isMovableByWindowBackground = true
+        }
+        
+        static func configureModalWindow(_ window: NSWindow) {
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isMovableByWindowBackground = true
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            window.center()
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+        }
     }
     
     enum History {

@@ -18,7 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 単一インスタンスチェック
         if let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "").first(where: { $0 != NSRunningApplication.current }) {
-            existingApp.activate(options: [.activateIgnoringOtherApps])
+            existingApp.activate()
             NSApp.terminate(nil)
             return
         }
@@ -32,6 +32,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Show welcome wizard if not completed
         if !UserDefaults.standard.bool(forKey: "welcomeCompleted") {
             showWelcomeWindow()
+        } else if !GoogleAuthService.shared.isLoggedIn {
+            // 未ログインならログイン画面を強制表示
+            showLoginRequiredWindow()
         } else {
             // Check accessibility permission
             if !HotkeyService.checkAccessibilityPermission() {
@@ -121,9 +124,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsWindow = NSWindow(contentViewController: hostingController)
         settingsWindow.title = "設定"
         settingsWindow.styleMask = [.titled, .closable]
-        settingsWindow.center()
-        settingsWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        Constants.UI.configureModalWindow(settingsWindow)
     }
     
     @objc private func quitApp() {
@@ -139,13 +140,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let welcomeWindow = NSWindow(contentViewController: hostingController)
         welcomeWindow.title = "ようこそ - Snipee"
         welcomeWindow.styleMask = [.titled, .closable, .fullSizeContentView]
-        welcomeWindow.titlebarAppearsTransparent = true
-        welcomeWindow.titleVisibility = .hidden
-        welcomeWindow.isMovableByWindowBackground = true
         welcomeWindow.backgroundColor = .clear
-        welcomeWindow.center()
-        welcomeWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        Constants.UI.configureModalWindow(welcomeWindow)
+    }
+    
+    // MARK: - Login Required Window
+        
+    private func showLoginRequiredWindow() {
+        let loginView = LoginRequiredView()
+        let hostingController = NSHostingController(rootView: loginView)
+        
+        let loginWindow = NSWindow(contentViewController: hostingController)
+        loginWindow.title = "ログインが必要です"
+        loginWindow.styleMask = [.titled, .fullSizeContentView]
+        Constants.UI.configureModalWindow(loginWindow)
     }
     
     // MARK: - Hotkeys
@@ -156,6 +164,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 PopupWindowController.shared.hidePopup()
             } else {
                 PopupWindowController.shared.showPopup(type: .main)
+                SyncService.shared.refreshMemberInfo()
             }
         }
         
@@ -164,6 +173,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 PopupWindowController.shared.hidePopup()
             } else {
                 PopupWindowController.shared.showPopup(type: .snippet)
+                SyncService.shared.refreshMemberInfo()
             }
         }
 
@@ -172,6 +182,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 PopupWindowController.shared.hidePopup()
             } else {
                 PopupWindowController.shared.showPopup(type: .history)
+                SyncService.shared.refreshMemberInfo()
             }
         }
         

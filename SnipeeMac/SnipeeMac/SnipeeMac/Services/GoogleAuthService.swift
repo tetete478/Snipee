@@ -13,16 +13,24 @@ class GoogleAuthService {
     private var codeVerifier: String?
     private var authCompletion: ((Result<String, Error>) -> Void)?
     
+    private let defaults = UserDefaults.standard
+    
+    private enum Keys {
+        static let accessToken = "accessToken"
+        static let refreshToken = "refreshToken"
+        static let userEmail = "userEmail"
+    }
+    
     private init() {}
     
     // MARK: - Public Methods
     
     var isLoggedIn: Bool {
-        KeychainHelper.shared.get(Constants.Keychain.accessToken) != nil
+        defaults.string(forKey: Keys.accessToken) != nil
     }
     
     var userEmail: String? {
-        KeychainHelper.shared.get(Constants.Keychain.userEmail)
+        defaults.string(forKey: Keys.userEmail)
     }
     
     func startOAuthFlow(completion: @escaping (Result<String, Error>) -> Void) {
@@ -72,19 +80,22 @@ class GoogleAuthService {
     }
     
     func logout() {
-        KeychainHelper.shared.delete(Constants.Keychain.accessToken)
-        KeychainHelper.shared.delete(Constants.Keychain.refreshToken)
-        KeychainHelper.shared.delete(Constants.Keychain.userEmail)
+        defaults.removeObject(forKey: Keys.accessToken)
+        defaults.removeObject(forKey: Keys.refreshToken)
+        defaults.removeObject(forKey: Keys.userEmail)
+        defaults.removeObject(forKey: "userName")
+        defaults.removeObject(forKey: "userDepartment")
+        defaults.removeObject(forKey: "userRole")
     }
     
     func getAccessToken(completion: @escaping (Result<String, Error>) -> Void) {
-        if let token = KeychainHelper.shared.get(Constants.Keychain.accessToken) {
+        if let token = defaults.string(forKey: Keys.accessToken) {
             completion(.success(token))
             return
         }
         
         // Try refresh
-        if let refreshToken = KeychainHelper.shared.get(Constants.Keychain.refreshToken) {
+        if let refreshToken = defaults.string(forKey: Keys.refreshToken) {
             refreshAccessToken(refreshToken: refreshToken, completion: completion)
             return
         }
@@ -146,9 +157,9 @@ class GoogleAuthService {
                 let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
                 
                 // Save tokens
-                KeychainHelper.shared.save(tokenResponse.accessToken, for: Constants.Keychain.accessToken)
+                self?.defaults.set(tokenResponse.accessToken, forKey: Keys.accessToken)
                 if let refreshToken = tokenResponse.refreshToken {
-                    KeychainHelper.shared.save(refreshToken, for: Constants.Keychain.refreshToken)
+                    self?.defaults.set(refreshToken, forKey: Keys.refreshToken)
                 }
                 
                 // Fetch user email, then complete
@@ -177,7 +188,7 @@ class GoogleAuthService {
         
         request.httpBody = params.map { "\($0.key)=\($0.value)" }.joined(separator: "&").data(using: .utf8)
         
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             if let error = error {
                 DispatchQueue.main.async {
                     completion(.failure(error))
@@ -194,7 +205,7 @@ class GoogleAuthService {
             
             do {
                 let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
-                KeychainHelper.shared.save(tokenResponse.accessToken, for: Constants.Keychain.accessToken)
+                self?.defaults.set(tokenResponse.accessToken, forKey: Keys.accessToken)
                 
                 DispatchQueue.main.async {
                     completion(.success(tokenResponse.accessToken))
@@ -212,10 +223,10 @@ class GoogleAuthService {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             if let data = data,
                let userInfo = try? JSONDecoder().decode(UserInfo.self, from: data) {
-                KeychainHelper.shared.save(userInfo.email, for: Constants.Keychain.userEmail)
+                self?.defaults.set(userInfo.email, forKey: Keys.userEmail)
             }
             DispatchQueue.main.async {
                 completion()

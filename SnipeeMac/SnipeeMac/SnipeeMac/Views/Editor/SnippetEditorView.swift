@@ -15,8 +15,19 @@ struct SnippetEditorView: View {
     @State private var isImporting: Bool = false
     @State private var isAddingSnippet: Bool = false
     @State private var isExporting: Bool = false
+    @State private var importTarget: ImportExportTarget? = nil
+    @State private var exportTarget: ImportExportTarget? = nil
+    @State private var isUploading: Bool = false
+    @State private var alertMessage: String? = nil
+    @State private var showAlert: Bool = false
+    @State private var isAdmin: Bool = false
 
     private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
+    
+    enum ImportExportTarget {
+        case personal
+        case master
+    }
     
     var body: some View {
         HSplitView {
@@ -46,6 +57,7 @@ struct SnippetEditorView: View {
         .frame(minWidth: 700, minHeight: 500)
         .onAppear {
             loadData()
+            loadAdminStatus()
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -54,16 +66,44 @@ struct SnippetEditorView: View {
                         Label("同期", systemImage: "arrow.triangle.2.circlepath")
                     }
                     
-                    Button(action: { isImporting = true }) {
+                    Menu {
+                        Button("個別スニペット") {
+                            importTarget = .personal
+                            isImporting = true
+                        }
+                        if isAdmin {
+                            Button("マスタスニペット") {
+                                importTarget = .master
+                                isImporting = true
+                            }
+                        }
+                    } label: {
                         Label("インポート", systemImage: "square.and.arrow.down")
                     }
                     .help("XMLファイルを読み込む")
 
-                    Button(action: { isExporting = true }) {
+                    Menu {
+                        Button("個別スニペット") {
+                            exportTarget = .personal
+                            isExporting = true
+                        }
+                        .disabled(personalFolders.isEmpty)
+                        if isAdmin {
+                            Button("マスタスニペット") {
+                                exportTarget = .master
+                                isExporting = true
+                            }
+                            .disabled(masterFolders.isEmpty)
+                        }
+                    } label: {
                         Label("エクスポート", systemImage: "square.and.arrow.up")
                     }
                     .help("XMLファイルに書き出す")
-                    .disabled(personalFolders.isEmpty)
+                    
+                    if isUploading {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    }
                 }
             }
         }
@@ -76,12 +116,17 @@ struct SnippetEditorView: View {
         }
         .fileExporter(
             isPresented: $isExporting,
-            document: SnippetXMLDocument(folders: personalFolders),
-                contentType: .xml,
-                defaultFilename: "snippets.xml"
-            ) { result in
-                handleExport(result)
-            }
+            document: SnippetXMLDocument(folders: exportTarget == .master ? masterFolders : personalFolders),
+            contentType: .xml,
+            defaultFilename: exportTarget == .master ? "master-snippets.xml" : "personal-snippets.xml"
+        ) { result in
+            handleExport(result)
+        }
+        .alert("通知", isPresented: $showAlert) {
+            Button("OK") { }
+        } message: {
+            Text(alertMessage ?? "")
+        }
             .sheet(isPresented: $isAddingSnippet) {
             AddSnippetSheet(
                 onAdd: addSnippet,
@@ -101,6 +146,11 @@ struct SnippetEditorView: View {
                 selectedSnippetId = firstSnippet.id
             }
         }
+    }
+    
+    private func loadAdminStatus() {
+        let role = SyncService.shared.getCachedMemberInfo().role ?? ""
+        isAdmin = (role == "最高管理者" || role == "管理者")
     }
     
     private func saveData() {
@@ -169,34 +219,112 @@ struct SnippetEditorView: View {
                 let parser = XMLParserHelper()
                 let importedFolders = parser.parse(data: data)
                 
-                for folder in importedFolders {
-                    var newSnippets: [Snippet] = []
-                    for snippet in folder.snippets {
+                if importTarget == .master {
+                    handleMasterImport(importedFolders)
+                } else {
+                    handlePersonalImport(importedFolders)
+                }
+            } catch {
+                print("Import error: \(error)")
+                alertMessage = "インポートに失敗しました: \(error.localizedDescription)"
+                showAlert = true
+            }
+        case .failure(let error):
+            print("Import failed: \(error)")
+        }
+    }
+    
+    private func handleMasterImport(_ importedFolders: [SnippetFolder]) {
+        var newFolders: [SnippetFolder] = []
+        
+        for folder in importedFolders {
+            var newSnippets: [Snippet] = []
+            for snippet in folder.snippets {
+                let newSnippet = Snippet(
+                    title: snippet.title,
+                    content: snippet.content,
+                    folder: folder.name,
+                    type: .master,
+                    description: snippet.description,
+                    order: newSnippets.count
+                )
+                newSnippets.append(newSnippet)
+            }
+            let newFolder = SnippetFolder(
+                name: folder.name,
+                snippets: newSnippets,
+                order: newFolders.count
+            )
+            newFolders.append(newFolder)
+        }
+        
+        isUploading = true
+        SyncService.shared.uploadMasterSnippets(folders: newFolders) { [self] result in
+            isUploading = false
+            switch result {
+            case .success:
+                masterFolders = newFolders
+                alertMessage = "マスタスニペットをアップロードしました"
+                showAlert = true
+            case .failure(let error):
+                alertMessage = "アップロードに失敗しました: \(error.localizedDescription)"
+                showAlert = true
+            }
+        }
+    }
+    
+    private func handlePersonalImport(_ importedFolders: [SnippetFolder]) {
+        var addedFolders = 0
+        var addedSnippets = 0
+        var updatedSnippets = 0
+        
+        for folder in importedFolders {
+            if let existingIndex = personalFolders.firstIndex(where: { $0.name == folder.name }) {
+                for snippet in folder.snippets {
+                    if let snippetIndex = personalFolders[existingIndex].snippets.firstIndex(where: { $0.title == snippet.title }) {
+                        personalFolders[existingIndex].snippets[snippetIndex].content = snippet.content
+                        personalFolders[existingIndex].snippets[snippetIndex].description = snippet.description
+                        updatedSnippets += 1
+                    } else {
                         let newSnippet = Snippet(
                             title: snippet.title,
                             content: snippet.content,
                             folder: folder.name,
                             type: .personal,
                             description: snippet.description,
-                            order: newSnippets.count
+                            order: personalFolders[existingIndex].snippets.count
                         )
-                        newSnippets.append(newSnippet)
+                        personalFolders[existingIndex].snippets.append(newSnippet)
+                        addedSnippets += 1
                     }
-                    let newFolder = SnippetFolder(
-                        name: folder.name,
-                        snippets: newSnippets,
-                        order: personalFolders.count
-                    )
-                    personalFolders.append(newFolder)
                 }
-                
-                saveData()
-            } catch {
-                print("Import error: \(error)")
+            } else {
+                var newSnippets: [Snippet] = []
+                for snippet in folder.snippets {
+                    let newSnippet = Snippet(
+                        title: snippet.title,
+                        content: snippet.content,
+                        folder: folder.name,
+                        type: .personal,
+                        description: snippet.description,
+                        order: newSnippets.count
+                    )
+                    newSnippets.append(newSnippet)
+                    addedSnippets += 1
+                }
+                let newFolder = SnippetFolder(
+                    name: folder.name,
+                    snippets: newSnippets,
+                    order: personalFolders.count
+                )
+                personalFolders.append(newFolder)
+                addedFolders += 1
             }
-        case .failure(let error):
-            print("Import failed: \(error)")
         }
+        
+        saveData()
+        alertMessage = "インポート完了\n追加: \(addedFolders)フォルダ, \(addedSnippets)スニペット\n更新: \(updatedSnippets)スニペット"
+        showAlert = true
     }
     
     private func handleExport(_ result: Result<URL, Error>) {

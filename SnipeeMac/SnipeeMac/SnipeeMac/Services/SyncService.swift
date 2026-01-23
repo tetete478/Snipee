@@ -86,18 +86,64 @@ class SyncService {
     }
     
     private func saveMemberInfo(_ member: MemberInfo) {
-        KeychainHelper.shared.save(member.name, for: "userName")
-        KeychainHelper.shared.save(member.department, for: "userDepartment")
-        KeychainHelper.shared.save(member.role, for: "userRole")
+        UserDefaults.standard.set(member.name, forKey: "userName")
+        UserDefaults.standard.set(member.department, forKey: "userDepartment")
+        UserDefaults.standard.set(member.role, forKey: "userRole")
     }
+    
+    // MARK: - Upload Master Snippets
+    
+    func uploadMasterSnippets(folders: [SnippetFolder], completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let department = UserDefaults.standard.string(forKey: "userDepartment") else {
+            completion(.failure(SyncError.notLoggedIn))
+            return
+        }
+        
+        GoogleSheetsService.shared.fetchDepartmentFileId(department: department) { result in
+            switch result {
+            case .success(let fileId):
+                let xmlString = XMLParserHelper.export(folders: folders)
+                guard let xmlData = xmlString.data(using: .utf8) else {
+                    completion(.failure(SyncError.syncFailed))
+                    return
+                }
+                
+                GoogleDriveService.shared.uploadXMLFile(fileId: fileId, xmlData: xmlData) { uploadResult in
+                    switch uploadResult {
+                    case .success:
+                        StorageService.shared.saveMasterSnippets(folders)
+                        completion(.success(()))
+                    case .failure(let error):
+                        completion(.failure(error))
+                    }
+                }
+                
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    // MARK: - Refresh Member Info Only
+        
+    func refreshMemberInfo() {
+        guard let email = GoogleAuthService.shared.userEmail else { return }
+        
+        GoogleSheetsService.shared.fetchMemberInfo(email: email) { [weak self] result in
+            if case .success(let member) = result {
+                self?.saveMemberInfo(member)
+            }
+        }
+    }
+    
     
     // MARK: - Get Cached Member Info
     
     func getCachedMemberInfo() -> (name: String?, department: String?, role: String?) {
         return (
-            name: KeychainHelper.shared.get("userName"),
-            department: KeychainHelper.shared.get("userDepartment"),
-            role: KeychainHelper.shared.get("userRole")
+            name: UserDefaults.standard.string(forKey: "userName"),
+            department: UserDefaults.standard.string(forKey: "userDepartment"),
+            role: UserDefaults.standard.string(forKey: "userRole")
         )
     }
 }

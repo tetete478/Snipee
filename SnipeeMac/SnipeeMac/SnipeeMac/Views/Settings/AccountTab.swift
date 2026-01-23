@@ -191,9 +191,6 @@ struct AccountTab: View {
     
     private func logout() {
         GoogleAuthService.shared.logout()
-        KeychainHelper.shared.delete("userName")
-        KeychainHelper.shared.delete("userDepartment")
-        KeychainHelper.shared.delete("userRole")
         isLoggedIn = false
         userEmail = ""
         userName = ""
