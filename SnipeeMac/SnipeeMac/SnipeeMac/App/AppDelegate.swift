@@ -267,20 +267,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     
     // MARK: - SPUUpdaterDelegate
     
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        NotificationCenter.default.post(
+            name: .updateCheckCompleted,
+            object: nil,
+            userInfo: ["status": "新しいバージョン \(item.displayVersionString) があります"]
+        )
+    }
+    
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        // 最新版の場合
+        NotificationCenter.default.post(
+            name: .updateCheckCompleted,
+            object: nil,
+            userInfo: ["status": "✓ 最新バージョンです"]
+        )
+    }
+    
     func updater(_ updater: SPUUpdater, didFailToFindUpdateWithError error: Error) {
-        // ネットワークエラーなどの場合のみアラートを表示
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "アップデート確認に失敗"
-                alert.informativeText = "ネットワーク接続を確認してください"
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
-        }
-        // 「最新版です」の場合はSparkleが自動でダイアログを表示
+        NotificationCenter.default.post(
+            name: .updateCheckCompleted,
+            object: nil,
+            userInfo: ["status": "エラー: \(error.localizedDescription)"]
+        )
     }
     
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
@@ -290,4 +299,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
     }
+}
+
+
+extension Notification.Name {
+    static let updateCheckCompleted = Notification.Name("updateCheckCompleted")
 }

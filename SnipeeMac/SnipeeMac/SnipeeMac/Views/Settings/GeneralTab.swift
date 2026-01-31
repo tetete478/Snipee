@@ -9,6 +9,8 @@ import SwiftUI
 struct GeneralTab: View {
     @State private var settings = StorageService.shared.getSettings()
     @State private var launchAtLogin = false
+    @State private var updateStatus: String = ""
+    @State private var isCheckingUpdate = false
     @State private var hotkeyMainCode: UInt16 = 8
     @State private var hotkeyMainMod: UInt = 0x40101
     @State private var hotkeySnippetCode: UInt16 = 9
@@ -123,19 +125,30 @@ struct GeneralTab: View {
                 
                 HStack {
                     Button(action: {
-                        if let appDelegate = NSApp.delegate as? AppDelegate {
-                            appDelegate.checkForUpdates()
-                        }
+                        checkForUpdates()
                     }) {
                         HStack {
                             Image(systemName: "arrow.down.circle")
                             Text("アップデートを確認")
                         }
                     }
+                    .disabled(isCheckingUpdate)
                     
                     Text("v\(Constants.App.version)")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+                
+                if !updateStatus.isEmpty {
+                    Text(updateStatus)
+                        .font(.caption)
+                        .foregroundColor(updateStatus.contains("エラー") ? .red : .green)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .updateCheckCompleted)) { notification in
+                isCheckingUpdate = false
+                if let status = notification.userInfo?["status"] as? String {
+                    updateStatus = status
                 }
             }
             
@@ -176,5 +189,13 @@ struct GeneralTab: View {
         // ホットキーサービスを再起動
         HotkeyService.shared.stopListening()
         HotkeyService.shared.startListening()
+    }
+    
+    private func checkForUpdates() {
+        isCheckingUpdate = true
+        updateStatus = "確認中..."
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.checkForUpdates()
+        }
     }
 }
