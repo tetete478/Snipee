@@ -203,6 +203,8 @@ struct OnboardingView: View {
                 case .success:
                     // メンバー確認OK
                     self.isLoggedIn = true
+                    // Sparkleを開始
+                    AppDelegate.shared?.startSparkleUpdater()
                     
                 case .failure:
                     // メンバーリストにない → ログアウト

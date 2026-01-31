@@ -270,7 +270,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             userDriverDelegate: nil
         )
         
-        // Updaterを開始
+        // ログイン済みの場合のみUpdaterを開始
+        if GoogleAuthService.shared.isLoggedIn {
+            startSparkleUpdater()
+        }
+    }
+    
+    func startSparkleUpdater() {
+        guard updaterController != nil else { return }
+        guard !updaterController.updater.sessionInProgress else { return }
+        
         do {
             try updaterController.updater.start()
             print("🔄 Sparkle started successfully")
