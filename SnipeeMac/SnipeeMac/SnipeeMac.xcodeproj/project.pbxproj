@@ -105,11 +105,12 @@
 				};
 			};
 			buildConfigurationList = E5717C772F166FA8007299C3 /* Build configuration list for PBXProject "SnipeeMac" */;
-			developmentRegion = en;
+			developmentRegion = ja;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
+				ja,
 			);
 			mainGroup = E5717C732F166FA8007299C3;
 			minimizedProjectReferenceProxies = 1;

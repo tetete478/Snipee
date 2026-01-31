@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>SUFeedURL</key>
-	<string>https://tetete478.github.io/Snipee/appcast-mac.xml</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -17,5 +15,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>SUFeedURL</key>
+	<string>https://tetete478.github.io/Snipee/appcast-mac.xml</string>
 </dict>
 </plist>
