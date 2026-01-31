@@ -88,7 +88,12 @@ struct LoginRequiredView: View {
                 switch result {
                 case .success:
                     // メンバー確認OK → ウィンドウを閉じる
-                    NSApp.keyWindow?.close()
+                    if let window = NSApp.windows.first(where: { $0.title == "ログインが必要です" }) {
+                        window.close()
+                    }
+                    
+                    // Sparkleを開始
+                    AppDelegate.shared?.startSparkleUpdater()
                     
                     // アクセシビリティ確認
                     if !HotkeyService.checkAccessibilityPermission() {
