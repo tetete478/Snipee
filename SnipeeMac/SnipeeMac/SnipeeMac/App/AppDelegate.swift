@@ -176,6 +176,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     
     private func setupHotkeys() {
         hotkeyService.onMainHotkey = {
+            guard GoogleAuthService.shared.isLoggedIn else { return }
             if NSApp.windows.contains(where: { $0.isVisible && $0 is NSPanel }) {
                 PopupWindowController.shared.hidePopup()
             } else {
@@ -185,6 +186,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
         
         hotkeyService.onSnippetHotkey = {
+            guard GoogleAuthService.shared.isLoggedIn else { return }
             if PopupWindowController.shared.isVisible(type: .snippet) {
                 PopupWindowController.shared.hidePopup()
             } else {
@@ -194,6 +196,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
 
         hotkeyService.onHistoryHotkey = {
+            guard GoogleAuthService.shared.isLoggedIn else { return }
             if PopupWindowController.shared.isVisible(type: .history) {
                 PopupWindowController.shared.hidePopup()
             } else {
