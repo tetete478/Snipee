@@ -91,11 +91,11 @@ jobs:
           mkdir -p dmg_contents
           cp -R SnipeeMac.app dmg_contents/
           ln -s /Applications dmg_contents/Applications
-          hdiutil create -volname "Snipee" -srcfolder dmg_contents -ov -format UDZO Snipee-Swift.dmg
+          hdiutil create -volname "Snipee" -srcfolder dmg_contents -ov -format UDZO Snipee-Swift-${{ env.VERSION }}.dmg
       
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
-          files: SnipeeMac/SnipeeMac/build/export/Snipee-Swift.dmg
+          files: SnipeeMac/SnipeeMac/build/export/Snipee-Swift-${{ env.VERSION }}.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
