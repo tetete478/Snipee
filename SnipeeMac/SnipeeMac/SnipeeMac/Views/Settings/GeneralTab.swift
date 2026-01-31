@@ -194,8 +194,14 @@ struct GeneralTab: View {
     private func checkForUpdates() {
         isCheckingUpdate = true
         updateStatus = "確認中..."
-        if let appDelegate = NSApp.delegate as? AppDelegate {
+        print("🔄 GeneralTab checkForUpdates called")
+        if let appDelegate = AppDelegate.shared {
+            print("🔄 AppDelegate found, calling checkForUpdates")
             appDelegate.checkForUpdates()
+        } else {
+            print("🔄 AppDelegate NOT found!")
+            updateStatus = "エラー: AppDelegateが見つかりません"
+            isCheckingUpdate = false
         }
     }
 }

@@ -9,6 +9,7 @@ import SwiftUI
 import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
+    static var shared: AppDelegate?
     private var statusItem: NSStatusItem!
     private var clipboardService = ClipboardService.shared
     private var hotkeyService = HotkeyService.shared
@@ -16,6 +17,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private var updaterController: SPUStandardUpdaterController!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
+        
         // 単一インスタンスチェック
         if let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "").first(where: { $0 != NSRunningApplication.current }) {
             existingApp.activate()
@@ -259,15 +262,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     
     private func setupSparkle() {
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: false,
             updaterDelegate: self,
             userDriverDelegate: nil
         )
+        
+        // Updaterを開始
+        do {
+            try updaterController.updater.start()
+            print("🔄 Sparkle started successfully")
+        } catch {
+            print("🔄 Sparkle start failed: \(error)")
+        }
+        
+        print("🔄 feedURL: \(String(describing: updaterController.updater.feedURL))")
+        
+        // その日の初回起動時のみチェック
+        checkForUpdatesIfNeeded()
+    }
+    
+    private func checkForUpdatesIfNeeded() {
+        let today = Calendar.current.startOfDay(for: Date())
+        let lastCheckKey = "lastUpdateCheckDate"
+        
+        if let lastCheck = UserDefaults.standard.object(forKey: lastCheckKey) as? Date {
+            let lastCheckDay = Calendar.current.startOfDay(for: lastCheck)
+            if lastCheckDay >= today {
+                print("🔄 Already checked today, skipping")
+                return
+            }
+        }
+        
+        print("🔄 First launch today, checking for updates")
+        UserDefaults.standard.set(Date(), forKey: lastCheckKey)
+        
+        // 少し遅延させてチェック（起動処理完了後）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.updaterController.checkForUpdates(nil)
+        }
     }
     
     // MARK: - SPUUpdaterDelegate
     
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        print("🔄 didFindValidUpdate: \(item.displayVersionString)")
+        NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(
             name: .updateCheckCompleted,
             object: nil,
@@ -276,7 +315,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
-        // 最新版の場合
+        print("🔄 updaterDidNotFindUpdate - already up to date")
         NotificationCenter.default.post(
             name: .updateCheckCompleted,
             object: nil,
@@ -285,6 +324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     func updater(_ updater: SPUUpdater, didFailToFindUpdateWithError error: Error) {
+        print("🔄 didFailToFindUpdateWithError: \(error.localizedDescription)")
         NotificationCenter.default.post(
             name: .updateCheckCompleted,
             object: nil,
@@ -297,7 +337,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     func checkForUpdates() {
+        print("🔄 checkForUpdates called")
         updaterController.checkForUpdates(nil)
+        print("🔄 checkForUpdates finished")
     }
 }
 
