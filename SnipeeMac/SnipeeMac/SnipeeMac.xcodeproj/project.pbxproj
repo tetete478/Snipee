@@ -33,11 +33,6 @@
 			path = SnipeeMac;
 			sourceTree = "<group>";
 		};
-		E589362E2F1CF40100CC6039 /* New Folder */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "New Folder";
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,7 +50,6 @@
 		E5717C732F166FA8007299C3 = {
 			isa = PBXGroup;
 			children = (
-				E589362E2F1CF40100CC6039 /* New Folder */,
 				E5717C7E2F166FA8007299C3 /* SnipeeMac */,
 				E5717C7D2F166FA8007299C3 /* Products */,
 			);
@@ -86,7 +80,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				E5717C7E2F166FA8007299C3 /* SnipeeMac */,
-				E589362E2F1CF40100CC6039 /* New Folder */,
 			);
 			name = SnipeeMac;
 			packageProductDependencies = (

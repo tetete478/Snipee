@@ -74,7 +74,9 @@ class GoogleDriveService {
     }
     
     private func uploadFile(fileId: String, data: Data, token: String, completion: @escaping (Result<Void, Error>) -> Void) {
-        let urlString = "https://www.googleapis.com/upload/drive/v3/files/\(fileId)?uploadType=media"
+        let urlString = "https://www.googleapis.com/upload/drive/v3/files/\(fileId)?uploadType=media&supportsAllDrives=true"
+        print("📤 uploadFile - URL: \(urlString)")
+        print("📤 uploadFile - data size: \(data.count) bytes")
         
         guard let url = URL(string: urlString) else {
             completion(.failure(DriveError.invalidURL))
@@ -87,13 +89,18 @@ class GoogleDriveService {
         request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
         request.httpBody = data
         
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                print("📤 uploadFile - error: \(error.localizedDescription)")
                 DispatchQueue.main.async { completion(.failure(error)) }
                 return
             }
             
             if let httpResponse = response as? HTTPURLResponse {
+                print("📤 uploadFile - statusCode: \(httpResponse.statusCode)")
+                if let data = data, let body = String(data: data, encoding: .utf8) {
+                    print("📤 uploadFile - response body: \(body)")
+                }
                 if httpResponse.statusCode == 403 {
                     DispatchQueue.main.async { completion(.failure(DriveError.noPermission)) }
                     return

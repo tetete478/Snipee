@@ -1,6 +1,4 @@
-
-
-const { app, BrowserWindow, globalShortcut, ipcMain, clipboard, Tray, Menu, systemPreferences, shell, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, clipboard, Tray, Menu, shell, dialog } = require('electron');
 
 // 単一インスタンスを保証
 const gotTheLock = app.requestSingleInstanceLock();
@@ -76,15 +74,14 @@ const store = new Store();
 const personalStore = new Store({ name: 'personal-snippets' });
 
 // デフォルトホットキー設定
-const DEFAULT_CLIPBOARD_SHORTCUT = process.platform === 'darwin' ? 'Command+Control+C' : 'Ctrl+Alt+C';
-const DEFAULT_SNIPPET_SHORTCUT = process.platform === 'darwin' ? 'Command+Control+V' : 'Ctrl+Alt+V';
-const DEFAULT_HISTORY_SHORTCUT = process.platform === 'darwin' ? 'Command+Control+X' : 'Ctrl+Alt+X';
+const DEFAULT_CLIPBOARD_SHORTCUT = 'Ctrl+Alt+C';
+const DEFAULT_SNIPPET_SHORTCUT = 'Ctrl+Alt+V';
+const DEFAULT_HISTORY_SHORTCUT = 'Ctrl+Alt+X';
 
 let mainWindow;
 let clipboardWindow;
 let snippetWindow;
 let historyWindow;
-let permissionWindow;
 let tray = null;
 let snippetEditorWindow = null;
 let welcomeWindow = null;
@@ -92,36 +89,18 @@ let previousActiveApp = null;  // 元のアクティブアプリを記憶
 
 // 元のアクティブアプリを記憶
 function captureActiveApp() {
-  if (process.platform === 'darwin') {
-    try {
-      const bundleId = execSync('osascript -e \'tell application "System Events" to get bundle identifier of first application process whose frontmost is true\'').toString().trim();
-      if (bundleId !== 'com.electron.snipee' && bundleId !== 'com.github.Electron') {
-        previousActiveApp = bundleId;
-      }
-    } catch (error) {
-      console.log('Mac: Bundle ID取得スキップ:', error.message);
+  try {
+    if (GetForegroundWindow) {
+      previousActiveApp = GetForegroundWindow();
     }
-  } else if (process.platform === 'win32') {
-    try {
-      if (GetForegroundWindow) {
-        previousActiveApp = GetForegroundWindow();
-      }
-    } catch (error) {
-      // HWND取得失敗時はスキップ
-    }
+  } catch (error) {
+    // HWND取得失敗時はスキップ
   }
 }
 
 // アクセシビリティ権限チェック
 function hasAccessibilityPermission() {
-  if (process.platform !== 'darwin') return true;
-  return systemPreferences.isTrustedAccessibilityClient(false);
-}
-
-// アクセシビリティ権限をリクエスト
-function requestAccessibilityPermission() {
-  if (process.platform !== 'darwin') return;
-  systemPreferences.isTrustedAccessibilityClient(true);
+  return true;
 }
 
 // クリップボード履歴管理
@@ -151,16 +130,6 @@ function createMainWindow() {
       mainWindow.hide();
     }
   });
-
-  // Mac: 表示のたびに全Workspaceで表示を再設定
-  if (process.platform === 'darwin') {
-    mainWindow.on('show', () => {
-      mainWindow.setVisibleOnAllWorkspaces(true, { 
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true 
-      });
-    });
-  }
 }
 
 // 汎用ウィンドウ作成関数
@@ -257,13 +226,6 @@ function createSnippetEditorWindow() {
   snippetEditorWindow.loadFile(path.join(__dirname, 'snippet-editor.html'));
 
   snippetEditorWindow.once('ready-to-show', () => {
-    // Mac: 全Workspaceで表示
-    if (process.platform === 'darwin') {
-      snippetEditorWindow.setVisibleOnAllWorkspaces(true, { 
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true 
-      });
-    }
     snippetEditorWindow.show();
   });
 
@@ -462,16 +424,6 @@ function startApp() {
     store.set('initialSnippetsCreated', true);
   }
 
-  if (process.platform === 'darwin') {
-    const hasPermission = hasAccessibilityPermission();
-    if (!hasPermission && !store.get('permissionGuideShown', false)) {
-      store.set('permissionGuideShown', true);
-      setTimeout(() => {
-        createPermissionWindow();
-      }, 1000);
-    }
-  }
-
   startClipboardMonitoring();
 
   // 2時間ごとに部署スニペットを自動同期
@@ -524,36 +476,9 @@ function registerGlobalShortcuts() {
   });
 }
 
-// 権限案内ウィンドウ作成
-function createPermissionWindow() {
-  permissionWindow = new BrowserWindow({
-    width: 700,
-    height: 600,
-    show: false,
-    resizable: false,
-    visibleOnAllWorkspaces: true,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  });
-
-  permissionWindow.loadFile(path.join(__dirname, 'permission-guide.html'));
-
-  permissionWindow.once('ready-to-show', () => {
-    permissionWindow.show();
-  });
-
-  permissionWindow.on('closed', () => {
-    permissionWindow = null;
-  });
-}
-
 // システムトレイ作成
 function createTray() {
-  const iconPath = process.platform === 'win32' 
-    ? path.join(__dirname, '../build/icon.ico')
-    : path.join(__dirname, '../build/tray_icon_16.png');
+  const iconPath = path.join(__dirname, '../build/icon.ico');
   
   try {
     tray = new Tray(iconPath);
@@ -571,12 +496,6 @@ function createTray() {
       label: '設定', 
       click: () => {
         if (mainWindow) {
-          if (process.platform === 'darwin') {
-            mainWindow.setVisibleOnAllWorkspaces(true, { 
-              visibleOnFullScreen: true,
-              skipTransformProcessType: true 
-            });
-          }
           mainWindow.show();
           mainWindow.focus();
         }
@@ -692,13 +611,7 @@ function showHistoryWindow() {
 function positionAndShowWindow(type, window) {
   const { screen } = require('electron');
   
-  if (process.platform === 'darwin') {
-    window.setVisibleOnAllWorkspaces(true, { 
-      visibleOnFullScreen: true,
-      skipTransformProcessType: true 
-    });
-    window.setAlwaysOnTop(true, 'floating');
-  }
+  window.setAlwaysOnTop(true);
   
   const positionKey = type === 'clipboard' ? 'clipboardWindowPosition' : 
                       type === 'snippet' ? 'snippetWindowPosition' : 'historyWindowPosition';
@@ -734,18 +647,6 @@ function positionAndShowWindow(type, window) {
 
   window.show();
   window.focus();
-  
-  // Mac: show()後に再設定（仮想デスクトップ固定化防止）
-  if (process.platform === 'darwin') {
-    setTimeout(() => {
-      if (window && !window.isDestroyed()) {
-        window.setVisibleOnAllWorkspaces(true, { 
-          visibleOnFullScreen: true,
-          skipTransformProcessType: true 
-        });
-      }
-    }, 100);
-  }
 }
 
 // Google Driveから共有スニペットを取得
@@ -936,21 +837,6 @@ ipcMain.handle('check-permission', () => {
 });
 
 ipcMain.handle('request-permission', () => {
-  requestAccessibilityPermission();
-  return true;
-});
-
-ipcMain.handle('open-system-preferences', () => {
-  if (process.platform === 'darwin') {
-    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
-  }
-  return true;
-});
-
-ipcMain.handle('close-permission-window', () => {
-  if (permissionWindow) {
-    permissionWindow.close();
-  }
   return true;
 });
 
@@ -1134,12 +1020,6 @@ ipcMain.handle('show-settings', () => {
   
   // 設定画面を表示
   if (mainWindow) {
-    if (process.platform === 'darwin') {
-      mainWindow.setVisibleOnAllWorkspaces(true, { 
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true 
-      });   
-    }
     mainWindow.show();
     mainWindow.focus();
   }
@@ -1209,14 +1089,6 @@ ipcMain.handle('paste-text', async (event, text) => {
   // ウィンドウ閉じ待ち
   await new Promise(resolve => setTimeout(resolve, 10));
 
-  // Mac: 元のアプリをアクティブにする
-  if (process.platform === 'darwin' && previousActiveApp) {
-    await new Promise((resolve) => {
-      exec(`osascript -e 'tell application id "${previousActiveApp}" to activate'`, () => resolve());
-    });
-    await new Promise(resolve => setTimeout(resolve, 30));
-  }
-
   // Windows: フォーカスを戻してペースト（koffi使用）
   if (process.platform === 'win32' && previousActiveApp) {
     keybd_event(VK_MENU, 0, 0, null);
@@ -1229,11 +1101,6 @@ ipcMain.handle('paste-text', async (event, text) => {
     keybd_event(VK_V, 0, 0, null);
     keybd_event(VK_V, 0, KEYEVENTF_KEYUP, null);
     keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, null);
-  }
-
-  // Mac: ペースト（osascript使用）
-  if (process.platform === 'darwin') {
-    exec('osascript -e \'tell application "System Events" to keystroke "v" using command down\'');
   }
 
   return { success: true };
@@ -1472,9 +1339,7 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  app.quit();
 });
 
 app.on('activate', () => {

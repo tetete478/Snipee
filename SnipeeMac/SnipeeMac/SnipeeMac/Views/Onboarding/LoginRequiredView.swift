@@ -57,11 +57,37 @@ struct LoginRequiredView: View {
         errorMessage = nil
         
         GoogleAuthService.shared.startOAuthFlow { result in
+            switch result {
+            case .success:
+                // スプシでメンバー確認
+                self.verifyMembership()
+                
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    self.isLoggingIn = false
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    private func verifyMembership() {
+        guard let email = GoogleAuthService.shared.userEmail else {
             DispatchQueue.main.async {
-                isLoggingIn = false
+                self.isLoggingIn = false
+                self.errorMessage = "メールアドレスを取得できませんでした"
+                GoogleAuthService.shared.logout()
+            }
+            return
+        }
+        
+        GoogleSheetsService.shared.fetchMemberInfo(email: email) { result in
+            DispatchQueue.main.async {
+                self.isLoggingIn = false
+                
                 switch result {
                 case .success:
-                    // ログイン成功 → ウィンドウを閉じる
+                    // メンバー確認OK → ウィンドウを閉じる
                     NSApp.keyWindow?.close()
                     
                     // アクセシビリティ確認
@@ -69,8 +95,10 @@ struct LoginRequiredView: View {
                         HotkeyService.requestAccessibilityPermission()
                     }
                     
-                case .failure(let error):
-                    errorMessage = error.localizedDescription
+                case .failure:
+                    // メンバーリストにない → ログアウト
+                    GoogleAuthService.shared.logout()
+                    self.errorMessage = "メンバーリストに登録されていません。\n管理者に連絡してください。"
                 }
             }
         }

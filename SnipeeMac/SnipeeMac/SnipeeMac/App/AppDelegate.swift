@@ -8,7 +8,7 @@ import AppKit
 import SwiftUI
 import Sparkle
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private var statusItem: NSStatusItem!
     private var clipboardService = ClipboardService.shared
     private var hotkeyService = HotkeyService.shared
@@ -22,6 +22,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
+        
+        // スコープ変更による強制再ログイン
+        checkScopeVersionAndReloginIfNeeded()
         
         setupSparkle()
         setupStatusBar()
@@ -117,14 +120,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         PopupWindowController.shared.showPopup(type: .snippet)
     }
     
+    private var settingsWindow: NSWindow?
+    
     @objc private func openSettings() {
+        if let existingWindow = settingsWindow, existingWindow.isVisible {
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
         let settingsView = SettingsView()
         let hostingController = NSHostingController(rootView: settingsView)
         
-        let settingsWindow = NSWindow(contentViewController: hostingController)
-        settingsWindow.title = "設定"
-        settingsWindow.styleMask = [.titled, .closable]
-        Constants.UI.configureModalWindow(settingsWindow)
+        let newWindow = NSWindow(contentViewController: hostingController)
+        newWindow.title = "設定"
+        newWindow.styleMask = [.titled, .closable]
+        Constants.UI.configureModalWindow(newWindow)
+        
+        settingsWindow = newWindow
     }
     
     @objc private func quitApp() {
@@ -216,20 +229,62 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             switch result {
             case .success(let syncResult):
                 print("Auto sync success: \(syncResult.folderCount) folders, \(syncResult.snippetCount) snippets")
+                // ユーザーステータスをスプシに送信
+                UserReportService.shared.reportUserStatus()
             case .failure(let error):
                 print("Auto sync failed: \(error.localizedDescription)")
             }
         }
     }
     
+    // MARK: - Scope Version Check
+        
+    private func checkScopeVersionAndReloginIfNeeded() {
+        let currentScopeVersion = Constants.Google.scopeVersion
+        let savedScopeVersion = UserDefaults.standard.integer(forKey: "scopeVersion")
+        
+        if savedScopeVersion < currentScopeVersion {
+            // 古いスコープでログイン済みの場合は強制ログアウト
+            if GoogleAuthService.shared.isLoggedIn {
+                GoogleAuthService.shared.logout()
+                print("スコープ変更のため再ログインが必要です")
+            }
+            // 新しいスコープバージョンを保存
+            UserDefaults.standard.set(currentScopeVersion, forKey: "scopeVersion")
+        }
+    }
+    
+    
     // MARK: - Sparkle
     
     private func setupSparkle() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: self,
             userDriverDelegate: nil
         )
+    }
+    
+    // MARK: - SPUUpdaterDelegate
+    
+    func updater(_ updater: SPUUpdater, didFailToFindUpdateWithError error: Error) {
+        // ネットワークエラーなどの場合のみアラートを表示
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "アップデート確認に失敗"
+                alert.informativeText = "ネットワーク接続を確認してください"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+        }
+        // 「最新版です」の場合はSparkleが自動でダイアログを表示
+    }
+    
+    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        print("アップデート中断: \(error.localizedDescription)")
     }
     
     func checkForUpdates() {

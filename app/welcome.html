@@ -458,25 +458,17 @@
       }
 
       // 閉じるショートカットのTips表示
-      const isMac = process.platform === 'darwin';
       const closeTip = document.getElementById('close-shortcut-tip');
-      if (isMac) {
-        closeTip.innerHTML = 'ウィンドウは <span class="key">⌘</span><span class="key">W</span> または <span class="key">Esc</span> で閉じられます';
-      } else {
-        closeTip.innerHTML = 'ウィンドウは <span class="key">Ctrl</span><span class="key">W</span> または <span class="key">Esc</span> で閉じられます';
-      }
+      closeTip.innerHTML = 'ウィンドウは <span class="key">Ctrl</span><span class="key">W</span> または <span class="key">Esc</span> で閉じられます';
 
       updateButtons();
     }
 
     // ホットキー表示
     async function loadHotkeys() {
-      const isMac = process.platform === 'darwin';
-      
-      // デフォルト値を使用（main.jsから取得も可能だが、シンプルにする）
-      const mainKeys = isMac ? ['⌘', 'Ctrl', 'C'] : ['Ctrl', 'Alt', 'C'];
-      const snippetKeys = isMac ? ['⌘', 'Ctrl', 'V'] : ['Ctrl', 'Alt', 'V'];
-      const historyKeys = isMac ? ['⌘', 'Ctrl', 'X'] : ['Ctrl', 'Alt', 'X'];
+      const mainKeys = ['Ctrl', 'Alt', 'C'];
+      const snippetKeys = ['Ctrl', 'Alt', 'V'];
+      const historyKeys = ['Ctrl', 'Alt', 'X'];
 
       document.getElementById('hotkey-main').innerHTML = mainKeys.map(k => `<span class="key">${k}</span>`).join('');
       document.getElementById('hotkey-snippet').innerHTML = snippetKeys.map(k => `<span class="key">${k}</span>`).join('');
@@ -570,7 +562,7 @@
         nextStep();
       } else if (e.key === 'Escape') {
         skipWizard();
-      } else if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
+      } else if (e.ctrlKey && e.key === 'w') {
         e.preventDefault();
         skipWizard();
       } else if (e.key === 'ArrowRight') {

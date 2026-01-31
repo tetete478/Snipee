@@ -10,14 +10,26 @@ struct ContentPanel: View {
     @Binding var selectedFolderId: String?
     @Binding var selectedSnippetId: String?
     var isShowingMaster: Bool
+    var isReadOnly: Bool = false
+    var isAdmin: Bool = false
     var onSave: () -> Void
-    var onPromoteToMaster: ((Snippet, String) -> Void)?
     var onAddSnippet: (() -> Void)?
+    @Binding var saveRequestId: Int
     
     @State private var editingTitle = ""
     @State private var editingContent = ""
     @State private var editingDescription = ""
     @State private var isDescriptionVisible = true
+    @State private var isEditingTitle = false
+    @State private var saveState: SaveState = .none
+    @State private var saveTask: Task<Void, Never>?
+    @FocusState private var isTitleFieldFocused: Bool
+    
+    enum SaveState {
+        case none
+        case saving
+        case saved
+    }
     
     var selectedFolder: SnippetFolder? {
         folders.first { $0.id == selectedFolderId }
@@ -27,33 +39,61 @@ struct ContentPanel: View {
         selectedFolder?.snippets.first { $0.id == selectedSnippetId }
     }
     
+    private var isEditable: Bool {
+        !isReadOnly && (!isShowingMaster || isAdmin)
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             if selectedSnippet != nil {
-                // ツールバー
                 editorToolbar
                 
                 Divider()
                 
-                // タイトル
                 titleSection
                 
                 Divider()
                 
-                // コンテンツ + 説明
                 contentSection
                 
                 Divider()
                 
-                // フッター
                 editorFooter
             } else {
                 emptyState
             }
         }
         .background(Color(.windowBackgroundColor))
-        .onChange(of: selectedSnippetId) { oldValue, newValue in
+        .onAppear {
             loadSnippet()
+        }
+        .onChange(of: selectedSnippetId) { oldValue, newValue in
+            // 切り替え前に即座に保存
+            if oldValue != nil {
+                saveImmediately()
+            }
+            loadSnippet()
+        }
+        .onChange(of: selectedFolderId) { oldValue, newValue in
+            // フォルダ切り替え前に保存
+            if oldValue != nil {
+                saveImmediately()
+            }
+        }
+        .onChange(of: folders.count) { _, _ in
+            loadSnippet()
+        }
+        .onChange(of: editingContent) { _, _ in
+            autoSave()
+        }
+        .onChange(of: editingDescription) { _, _ in
+            autoSave()
+        }
+        .onDisappear {
+            saveImmediately()
+        }
+        .onChange(of: saveRequestId) { _, _ in
+            saveImmediately()
         }
     }
     
@@ -72,9 +112,19 @@ struct ContentPanel: View {
                 }
             }
             
+            if isReadOnly {
+                Text("(参照モード)")
+                    .font(.system(size: 11))
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.2))
+                    .cornerRadius(4)
+            }
+            
             Spacer()
             
-            if !isShowingMaster {
+            if isEditable {
                 Button(action: { onAddSnippet?() }) {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
@@ -95,15 +145,39 @@ struct ContentPanel: View {
     
     private var titleSection: some View {
         HStack {
-            TextField("タイトル", text: $editingTitle)
-                .textFieldStyle(.plain)
-                .font(.title2)
-                .foregroundColor(Color(.labelColor))
-                .disabled(isShowingMaster)
+            if isEditingTitle {
+                TextField("タイトル", text: $editingTitle)
+                    .textFieldStyle(.plain)
+                    .font(.title2)
+                    .foregroundColor(Color(.labelColor))
+                    .focused($isTitleFieldFocused)
+                    .onSubmit {
+                        commitTitleEdit()
+                    }
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            isTitleFieldFocused = true
+                        }
+                    }
+                    .onChange(of: isTitleFieldFocused) { _, focused in
+                        if !focused {
+                            commitTitleEdit()
+                        }
+                    }
+            } else {
+                Text(editingTitle.isEmpty ? "タイトル" : editingTitle)
+                    .font(.title2)
+                    .foregroundColor(editingTitle.isEmpty ? Color(.placeholderTextColor) : Color(.labelColor))
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        if isEditable {
+                            isEditingTitle = true
+                        }
+                    }
+            }
             
             Spacer()
             
-            // 説明トグルボタン
             Button(action: { isDescriptionVisible.toggle() }) {
                 Image(systemName: isDescriptionVisible ? "sidebar.right" : "sidebar.left")
                     .foregroundColor(Color(.secondaryLabelColor))
@@ -119,16 +193,25 @@ struct ContentPanel: View {
     
     private var contentSection: some View {
         HStack(spacing: 0) {
-            // メインコンテンツ
-            TextEditor(text: $editingContent)
-                .font(.system(.body, design: .monospaced))
-                .padding(8)
-                .scrollContentBackground(.hidden)
+            if isReadOnly {
+                ScrollView {
+                    Text(editingContent)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                }
                 .background(Color(.textBackgroundColor))
-                .disabled(isShowingMaster)
+            } else {
+                TextEditor(text: $editingContent)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(8)
+                    .scrollContentBackground(.hidden)
+                    .background(Color(.textBackgroundColor))
+                    .disabled(!isEditable)
+            }
             
-            // 説明パネル
-            if isDescriptionVisible {
+            if isDescriptionVisible && !isReadOnly {
                 Divider()
                 
                 VStack(alignment: .leading, spacing: 0) {
@@ -144,7 +227,7 @@ struct ContentPanel: View {
                         .padding(4)
                         .scrollContentBackground(.hidden)
                         .background(Color(.textBackgroundColor))
-                        .disabled(isShowingMaster)
+                        .disabled(!isEditable)
                 }
                 .frame(width: 200)
                 .background(Color(.controlBackgroundColor))
@@ -162,33 +245,34 @@ struct ContentPanel: View {
             
             Spacer()
             
-            if !isShowingMaster {
-                // マスタに昇格ボタン
-                if let snippet = selectedSnippet, let folderName = selectedFolder?.name {
-                    Button {
-                        onPromoteToMaster?(snippet, folderName)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.up.circle")
-                            Text("マスタに昇格")
-                        }
-                        .font(.system(size: 11))
+            if isEditable {
+                switch saveState {
+                case .none:
+                    EmptyView()
+                case .saving:
+                    HStack(spacing: 4) {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                        Text("保存中...")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color(.secondaryLabelColor))
                     }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.orange)
+                case .saved:
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 12))
+                        Text("保存完了")
+                            .font(.system(size: 11))
+                            .foregroundColor(.green)
+                    }
+                    .transition(.opacity)
                 }
-                
-                // 保存ボタン
-                Button("保存") {
-                    saveSnippet()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(editingTitle.isEmpty)
             }
         }
         .padding(8)
         .background(Color(.windowBackgroundColor))
+        .animation(.easeInOut(duration: 0.2), value: saveState)
     }
     
     // MARK: - Empty State
@@ -201,11 +285,11 @@ struct ContentPanel: View {
                 .font(.system(size: 48))
                 .foregroundColor(Color(.tertiaryLabelColor))
             
-            Text("スニペットを選択してください")
+            Text(isReadOnly ? "スニペットを選択して参照" : "スニペットを選択してください")
                 .font(.system(size: 14))
                 .foregroundColor(Color(.secondaryLabelColor))
             
-            if !isShowingMaster {
+            if isEditable {
                 Button(action: { onAddSnippet?() }) {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
@@ -223,6 +307,7 @@ struct ContentPanel: View {
     // MARK: - Actions
     
     private func loadSnippet() {
+        isEditingTitle = false
         if let snippet = selectedSnippet {
             editingTitle = snippet.title
             editingContent = snippet.content
@@ -234,13 +319,86 @@ struct ContentPanel: View {
         }
     }
     
+    private func commitTitleEdit() {
+        isEditingTitle = false
+        if editingTitle.isEmpty {
+            editingTitle = "新規スニペット"
+        }
+        saveSnippet()
+    }
+    
     private func saveSnippet() {
+        guard !isReadOnly else { return }
         guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == selectedSnippetId }) else {
             return
         }
         
         folders[folderIndex].snippets[snippetIndex].title = editingTitle
+        folders[folderIndex].snippets[snippetIndex].content = editingContent
+        folders[folderIndex].snippets[snippetIndex].description = editingDescription.isEmpty ? nil : editingDescription
+        onSave()
+    }
+    
+    private func autoSave() {
+        guard !isReadOnly && isEditable else { return }
+        guard folders.firstIndex(where: { $0.id == selectedFolderId }) != nil else { return }
+        
+        // 既存のタスクをキャンセル
+        saveTask?.cancel()
+        
+        // 0.5秒後に保存
+        saveTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            
+            guard !Task.isCancelled else { return }
+            
+            await MainActor.run {
+                saveState = .saving
+            }
+            
+            // 少し待ってから保存（UIに反映）
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            
+            guard !Task.isCancelled else { return }
+            
+            await MainActor.run {
+                guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }),
+                      let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == selectedSnippetId }) else {
+                    saveState = .none
+                    return
+                }
+                
+                folders[folderIndex].snippets[snippetIndex].content = editingContent
+                folders[folderIndex].snippets[snippetIndex].description = editingDescription.isEmpty ? nil : editingDescription
+                onSave()
+                
+                saveState = .saved
+                
+                // 2秒後に非表示
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    await MainActor.run {
+                        if saveState == .saved {
+                            saveState = .none
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func saveImmediately() {
+        // 保留中のタスクをキャンセル
+        saveTask?.cancel()
+        saveState = .none
+        
+        guard !isReadOnly && isEditable else { return }
+        guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }),
+              let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == selectedSnippetId }) else {
+            return
+        }
+        
         folders[folderIndex].snippets[snippetIndex].content = editingContent
         folders[folderIndex].snippets[snippetIndex].description = editingDescription.isEmpty ? nil : editingDescription
         onSave()

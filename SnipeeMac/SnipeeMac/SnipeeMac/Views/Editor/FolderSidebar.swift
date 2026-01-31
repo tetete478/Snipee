@@ -12,16 +12,33 @@ struct FolderSidebar: View {
     @Binding var selectedFolderId: String?
     @Binding var selectedSnippetId: String?
     @Binding var isShowingMaster: Bool
+    var isAdmin: Bool
+    var isReadOnly: Bool = false
     var onSave: () -> Void
+    var onPromoteSnippet: ((Snippet, String) -> Void)?
+    var onDemoteSnippet: ((Snippet, String) -> Void)?
+    var onPromoteFolder: ((SnippetFolder) -> Void)?
+    var onDemoteFolder: ((SnippetFolder) -> Void)?
     
     @State private var isAddingFolder = false
     @State private var newFolderName = ""
     @State private var expandedMasterFolderIds: Set<String> = []
     @State private var expandedPersonalFolderIds: Set<String> = []
     @State private var draggingSnippet: Snippet?
+    @State private var draggingSnippetSourceFolder: SnippetFolder?
+    @State private var draggingSnippetIsMaster: Bool = false
     @State private var draggingFolder: SnippetFolder?
+    @State private var draggingFolderIsMaster: Bool = false
     @State private var isMasterSectionExpanded: Bool = true
     @State private var isPersonalSectionExpanded: Bool = true
+    
+    
+    
+    // スニペット名インライン編集用（新規追加・名前変更共通）
+    @State private var editingSnippetId: String?
+    
+    // フォルダ名インライン編集用
+    @State private var editingFolderId: String?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -53,6 +70,18 @@ struct FolderSidebar: View {
                         isExpanded: isMasterSectionExpanded,
                         onToggle: { isMasterSectionExpanded.toggle() }
                     )
+                    .onDrop(of: [.text], delegate: SectionDropDelegate(
+                        isMasterSection: true,
+                        draggingSnippet: $draggingSnippet,
+                        draggingSnippetSourceFolder: $draggingSnippetSourceFolder,
+                        draggingSnippetIsMaster: $draggingSnippetIsMaster,
+                        draggingFolder: $draggingFolder,
+                        draggingFolderIsMaster: $draggingFolderIsMaster,
+                        onPromoteSnippet: onPromoteSnippet,
+                        onDemoteSnippet: onDemoteSnippet,
+                        onPromoteFolder: onPromoteFolder,
+                        onDemoteFolder: onDemoteFolder
+                    ))
                     
                     if isMasterSectionExpanded {
                         ForEach(masterFolders) { folder in
@@ -60,20 +89,64 @@ struct FolderSidebar: View {
                                 folder: folder,
                                 isExpanded: expandedMasterFolderIds.contains(folder.id),
                                 selectedSnippetId: $selectedSnippetId,
+                                editingSnippetId: $editingSnippetId,
+                                editingFolderId: $editingFolderId,
                                 isShowingMaster: true,
+                                isAdmin: isAdmin,
+                                isReadOnly: isReadOnly,
                                 draggingSnippet: $draggingSnippet,
                                 onToggle: { toggleMasterFolder(folder.id) },
                                 onSelectSnippet: { snippet in
+                                    editingSnippetId = nil
+                                    editingFolderId = nil
                                     isShowingMaster = true
                                     selectedFolderId = folder.id
                                     selectedSnippetId = snippet.id
                                 },
-                                onDeleteFolder: { },
-                                onDeleteSnippet: { _ in },
+                                onDeleteFolder: { deleteMasterFolder(folder) },
+                                onDeleteSnippet: { snippet in
+                                    deleteMasterSnippet(snippet, from: folder)
+                                },
                                 onMoveSnippet: { from, to in
                                     moveMasterSnippet(in: folder, from: from, to: to)
+                                },
+                                onRenameFolder: {
+                                    editingFolderId = folder.id
+                                },
+                                onRenameSnippet: { snippet in
+                                    editingSnippetId = snippet.id
+                                },
+                                onAddSnippet: {
+                                    addSnippetInline(to: folder, isMaster: true)
+                                },
+                                onStartDragSnippet: { snippet in
+                                    draggingSnippetSourceFolder = folder
+                                    draggingSnippetIsMaster = true
+                                },
+                                onPromoteFolder: { },
+                                onDemoteFolder: { onDemoteFolder?(folder) },
+                                onPromoteSnippet: { _ in },
+                                onDemoteSnippet: { snippet in onDemoteSnippet?(snippet, folder.name) },
+                                onCommitSnippetRename: { snippetId, newTitle in
+                                    commitSnippetRename(snippetId: snippetId, newTitle: newTitle, isMaster: true)
+                                },
+                                onCommitFolderRename: { newName in
+                                    commitFolderRename(folderId: folder.id, newName: newName, isMaster: true)
                                 }
                             )
+                            .onDrag {
+                                guard !isReadOnly else { return NSItemProvider() }
+                                print("🟢 Drag started - folder: \(folder.name), isMaster: true")
+                                self.draggingFolder = folder
+                                self.draggingFolderIsMaster = true
+                                return NSItemProvider(object: folder.id as NSString)
+                            }
+                            .onDrop(of: [.text], delegate: FolderDropDelegate(
+                                folder: folder,
+                                folders: $masterFolders,
+                                draggingFolder: $draggingFolder,
+                                onSave: onSave
+                            ))
                         }
                         
                         if masterFolders.isEmpty {
@@ -85,20 +158,33 @@ struct FolderSidebar: View {
                         }
                     }
                     
-                    // MARK: - セパレーター
-                    Rectangle()
-                        .fill(Color(.separatorColor))
-                        .frame(height: 2)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 8)
-                    
-                    // MARK: - 個別セクション
-                    SectionHeader(
+                    if !isReadOnly {
+                        // MARK: - セパレーター
+                        Rectangle()
+                            .fill(Color(.separatorColor))
+                            .frame(height: 2)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 8)
+                        
+                        // MARK: - 個別セクション
+                        SectionHeader(
                         title: "個別",
                         count: personalFolders.count,
                         isExpanded: isPersonalSectionExpanded,
                         onToggle: { isPersonalSectionExpanded.toggle() }
                     )
+                    .onDrop(of: [.text], delegate: SectionDropDelegate(
+                        isMasterSection: false,
+                        draggingSnippet: $draggingSnippet,
+                        draggingSnippetSourceFolder: $draggingSnippetSourceFolder,
+                        draggingSnippetIsMaster: $draggingSnippetIsMaster,
+                        draggingFolder: $draggingFolder,
+                        draggingFolderIsMaster: $draggingFolderIsMaster,
+                        onPromoteSnippet: onPromoteSnippet,
+                        onDemoteSnippet: onDemoteSnippet,
+                        onPromoteFolder: onPromoteFolder,
+                        onDemoteFolder: onDemoteFolder
+                    ))
                     
                     if isPersonalSectionExpanded {
                         ForEach(personalFolders) { folder in
@@ -106,10 +192,15 @@ struct FolderSidebar: View {
                                 folder: folder,
                                 isExpanded: expandedPersonalFolderIds.contains(folder.id),
                                 selectedSnippetId: $selectedSnippetId,
+                                editingSnippetId: $editingSnippetId,
+                                editingFolderId: $editingFolderId,
                                 isShowingMaster: false,
+                                isAdmin: isAdmin,
                                 draggingSnippet: $draggingSnippet,
                                 onToggle: { togglePersonalFolder(folder.id) },
                                 onSelectSnippet: { snippet in
+                                    editingSnippetId = nil
+                                    editingFolderId = nil
                                     isShowingMaster = false
                                     selectedFolderId = folder.id
                                     selectedSnippetId = snippet.id
@@ -120,10 +211,35 @@ struct FolderSidebar: View {
                                 },
                                 onMoveSnippet: { from, to in
                                     movePersonalSnippet(in: folder, from: from, to: to)
+                                },
+                                onRenameFolder: {
+                                    editingFolderId = folder.id
+                                },
+                                onRenameSnippet: { snippet in
+                                    editingSnippetId = snippet.id
+                                },
+                                onAddSnippet: {
+                                    addSnippetInline(to: folder, isMaster: false)
+                                },
+                                onStartDragSnippet: { snippet in
+                                    draggingSnippetSourceFolder = folder
+                                    draggingSnippetIsMaster = false
+                                },
+                                onPromoteFolder: { onPromoteFolder?(folder) },
+                                onDemoteFolder: { },
+                                onPromoteSnippet: { snippet in onPromoteSnippet?(snippet, folder.name) },
+                                onDemoteSnippet: { _ in },
+                                onCommitSnippetRename: { snippetId, newTitle in
+                                    commitSnippetRename(snippetId: snippetId, newTitle: newTitle, isMaster: false)
+                                },
+                                onCommitFolderRename: { newName in
+                                    commitFolderRename(folderId: folder.id, newName: newName, isMaster: false)
                                 }
                             )
                             .onDrag {
+                                print("🟢 Drag started - folder: \(folder.name), isMaster: false")
                                 self.draggingFolder = folder
+                                self.draggingFolderIsMaster = false
                                 self.expandedPersonalFolderIds.removeAll()
                                 return NSItemProvider(object: folder.id as NSString)
                             }
@@ -143,10 +259,20 @@ struct FolderSidebar: View {
                                 .padding(.vertical, 8)
                         }
                     }
+                    }
                 }
                 .padding(.vertical, 4)
             }
             .background(Color(.controlBackgroundColor))
+            .onTapGesture {
+                // 背景クリックで編集を確定
+                if editingFolderId != nil {
+                    editingFolderId = nil
+                }
+                if editingSnippetId != nil {
+                    editingSnippetId = nil
+                }
+            }
             
             Divider()
             
@@ -161,6 +287,7 @@ struct FolderSidebar: View {
             .background(Color(.windowBackgroundColor))
         }
         .background(Color(.windowBackgroundColor))
+        // フォルダ追加シート
         .sheet(isPresented: $isAddingFolder) {
             AddFolderSheet(
                 folderName: $newFolderName,
@@ -168,6 +295,7 @@ struct FolderSidebar: View {
                 onCancel: { isAddingFolder = false }
             )
         }
+        
         .onAppear {
             // 最初のフォルダを展開
             if let firstMaster = masterFolders.first {
@@ -222,12 +350,119 @@ struct FolderSidebar: View {
         onSave()
     }
     
+    private func deleteMasterFolder(_ folder: SnippetFolder) {
+        guard isAdmin else { return }
+        masterFolders.removeAll { $0.id == folder.id }
+        expandedMasterFolderIds.remove(folder.id)
+        if selectedFolderId == folder.id {
+            selectedFolderId = masterFolders.first?.id
+            selectedSnippetId = masterFolders.first?.snippets.first?.id
+        }
+        onSave()
+    }
+    
     private func deleteSnippet(_ snippet: Snippet, from folder: SnippetFolder) {
         guard let folderIndex = personalFolders.firstIndex(where: { $0.id == folder.id }) else { return }
         personalFolders[folderIndex].snippets.removeAll { $0.id == snippet.id }
         if selectedSnippetId == snippet.id {
             selectedSnippetId = personalFolders[folderIndex].snippets.first?.id
         }
+        onSave()
+    }
+    
+    private func deleteMasterSnippet(_ snippet: Snippet, from folder: SnippetFolder) {
+        guard isAdmin else { return }
+        guard let folderIndex = masterFolders.firstIndex(where: { $0.id == folder.id }) else { return }
+        masterFolders[folderIndex].snippets.removeAll { $0.id == snippet.id }
+        if selectedSnippetId == snippet.id {
+            selectedSnippetId = masterFolders[folderIndex].snippets.first?.id
+        }
+        onSave()
+    }
+    
+    // MARK: - Rename Actions
+    
+    private func commitFolderRename(folderId: String, newName: String, isMaster: Bool) {
+        editingFolderId = nil
+        
+        // 空または空白のみの場合は変更をキャンセル
+        let trimmedName = newName.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return }
+        
+        if isMaster {
+            if let index = masterFolders.firstIndex(where: { $0.id == folderId }) {
+                // 同じ名前なら保存しない
+                guard masterFolders[index].name != newName else { return }
+                masterFolders[index].name = newName
+            }
+        } else {
+            if let index = personalFolders.firstIndex(where: { $0.id == folderId }) {
+                guard personalFolders[index].name != newName else { return }
+                personalFolders[index].name = newName
+            }
+        }
+        
+        onSave()
+    }
+    
+    // MARK: - Add Snippet Inline
+    
+    private func addSnippetInline(to folder: SnippetFolder, isMaster: Bool) {
+        let newSnippet = Snippet(
+            title: "新規スニペット",
+            content: "",
+            folder: folder.name,
+            type: isMaster ? .master : .personal,
+            order: folder.snippets.count
+        )
+        
+        if isMaster {
+            if let index = masterFolders.firstIndex(where: { $0.id == folder.id }) {
+                masterFolders[index].snippets.append(newSnippet)
+                expandedMasterFolderIds.insert(folder.id)
+                selectedSnippetId = newSnippet.id
+                selectedFolderId = folder.id
+                isShowingMaster = true
+                editingSnippetId = newSnippet.id
+            }
+        } else {
+            if let index = personalFolders.firstIndex(where: { $0.id == folder.id }) {
+                personalFolders[index].snippets.append(newSnippet)
+                expandedPersonalFolderIds.insert(folder.id)
+                selectedSnippetId = newSnippet.id
+                selectedFolderId = folder.id
+                isShowingMaster = false
+                editingSnippetId = newSnippet.id
+            }
+        }
+    }
+    
+    private func commitSnippetRename(snippetId: String, newTitle: String, isMaster: Bool) {
+        editingSnippetId = nil
+        
+        // 空または空白のみの場合は変更をキャンセル
+        let trimmedTitle = newTitle.trimmingCharacters(in: .whitespaces)
+        guard !trimmedTitle.isEmpty else { return }
+        
+        if isMaster {
+            for folderIndex in masterFolders.indices {
+                if let snippetIndex = masterFolders[folderIndex].snippets.firstIndex(where: { $0.id == snippetId }) {
+                    // 同じ名前なら保存しない
+                    guard masterFolders[folderIndex].snippets[snippetIndex].title != newTitle else { return }
+                    masterFolders[folderIndex].snippets[snippetIndex].title = newTitle
+                    break
+                }
+            }
+        } else {
+            for folderIndex in personalFolders.indices {
+                if let snippetIndex = personalFolders[folderIndex].snippets.firstIndex(where: { $0.id == snippetId }) {
+                    guard personalFolders[folderIndex].snippets[snippetIndex].title != newTitle else { return }
+                    personalFolders[folderIndex].snippets[snippetIndex].title = newTitle
+                    break
+                }
+            }
+        }
+        
         onSave()
     }
     
@@ -285,6 +520,66 @@ struct SectionHeader: View {
     }
 }
 
+// MARK: - Section Drop Delegate (昇格/降格用)
+
+struct SectionDropDelegate: DropDelegate {
+    let isMasterSection: Bool
+    @Binding var draggingSnippet: Snippet?
+    @Binding var draggingSnippetSourceFolder: SnippetFolder?
+    @Binding var draggingSnippetIsMaster: Bool
+    @Binding var draggingFolder: SnippetFolder?
+    @Binding var draggingFolderIsMaster: Bool
+    var onPromoteSnippet: ((Snippet, String) -> Void)?
+    var onDemoteSnippet: ((Snippet, String) -> Void)?
+    var onPromoteFolder: ((SnippetFolder) -> Void)?
+    var onDemoteFolder: ((SnippetFolder) -> Void)?
+    
+    func performDrop(info: DropInfo) -> Bool {
+        print("🔵 performDrop - snippet: \(draggingSnippet?.title ?? "nil"), folder: \(draggingFolder?.name ?? "nil")")
+        
+        // スニペットのドロップ
+        if let snippet = draggingSnippet, let folder = draggingSnippetSourceFolder {
+            if isMasterSection && !draggingSnippetIsMaster {
+                // 個別 → マスタ（昇格）
+                onPromoteSnippet?(snippet, folder.name)
+            } else if !isMasterSection && draggingSnippetIsMaster {
+                // マスタ → 個別（降格）
+                onDemoteSnippet?(snippet, folder.name)
+            }
+        }
+        
+        // フォルダのドロップ
+        if let folder = draggingFolder {
+            if isMasterSection && !draggingFolderIsMaster {
+                // 個別 → マスタ（昇格）
+                onPromoteFolder?(folder)
+            } else if !isMasterSection && draggingFolderIsMaster {
+                // マスタ → 個別（降格）
+                onDemoteFolder?(folder)
+            }
+        }
+        
+        draggingSnippet = nil
+        draggingSnippetSourceFolder = nil
+        draggingFolder = nil
+        return true
+    }
+    
+    func dropEntered(info: DropInfo) {
+        // ドロップエリアに入った
+    }
+    
+    func validateDrop(info: DropInfo) -> Bool {
+        let result = draggingSnippet != nil || draggingFolder != nil
+        print("🟡 validateDrop - snippet: \(draggingSnippet?.title ?? "nil"), folder: \(draggingFolder?.name ?? "nil"), result: \(result)")
+        return result
+    }
+    
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+}
+
 // MARK: - Folder Drop Delegate
 
 struct FolderDropDelegate: DropDelegate {
@@ -312,10 +607,7 @@ struct FolderDropDelegate: DropDelegate {
         onSave()
     }
     
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        return DropProposal(operation: .move)
     }
-}
 
 // MARK: - Folder Row (階層式)
 
@@ -323,13 +615,38 @@ struct FolderRow: View {
     let folder: SnippetFolder
     let isExpanded: Bool
     @Binding var selectedSnippetId: String?
+    @Binding var editingSnippetId: String?
+    @Binding var editingFolderId: String?
     let isShowingMaster: Bool
+    let isAdmin: Bool
+    var isReadOnly: Bool = false
     @Binding var draggingSnippet: Snippet?
     let onToggle: () -> Void
     let onSelectSnippet: (Snippet) -> Void
     let onDeleteFolder: () -> Void
     let onDeleteSnippet: (Snippet) -> Void
     let onMoveSnippet: (IndexSet, Int) -> Void
+    let onRenameFolder: () -> Void
+    let onRenameSnippet: (Snippet) -> Void
+    let onAddSnippet: () -> Void
+    let onStartDragSnippet: (Snippet) -> Void
+    let onPromoteFolder: () -> Void
+    let onDemoteFolder: () -> Void
+    let onPromoteSnippet: (Snippet) -> Void
+    let onDemoteSnippet: (Snippet) -> Void
+    let onCommitSnippetRename: ((String, String) -> Void)?
+    let onCommitFolderRename: ((String) -> Void)?
+    
+    @State private var editingFolderName: String = ""
+    @FocusState private var isFolderNameFocused: Bool
+    
+    private var isEditingFolder: Bool {
+        editingFolderId == folder.id
+    }
+    
+    private var canEdit: Bool {
+        !isReadOnly && (!isShowingMaster || isAdmin)
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -338,22 +655,73 @@ struct FolderRow: View {
                 // インデント
                 Color.clear.frame(width: 8)
                 
-                // 折りたたみ矢印
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(Color(.secondaryLabelColor))
-                    .frame(width: 12)
+                // 折りたたみ矢印 + フォルダアイコン（クリックでトグル）
+                HStack(spacing: 6) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(Color(.secondaryLabelColor))
+                        .frame(width: 12)
+                    
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 14))
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onToggle()
+                }
                 
-                Image(systemName: "folder.fill")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 14))
-                
-                Text(folder.name)
-                    .font(.system(size: 13))
-                    .foregroundColor(Color(.labelColor))
-                    .lineLimit(1)
+                // フォルダ名（インライン編集対応）
+                if isEditingFolder {
+                    TextField("フォルダ名", text: $editingFolderName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(.textBackgroundColor))
+                        .cornerRadius(4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.accentColor, lineWidth: 2)
+                        )
+                        .focused($isFolderNameFocused)
+                        .onSubmit {
+                            onCommitFolderRename?(editingFolderName)
+                        }
+                        .onAppear {
+                            editingFolderName = folder.name
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                isFolderNameFocused = true
+                            }
+                        }
+                        .onChange(of: isFolderNameFocused) { _, focused in
+                            if !focused && isEditingFolder {
+                                onCommitFolderRename?(editingFolderName)
+                            }
+                        }
+                } else {
+                    Text(folder.name)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(.labelColor))
+                        .lineLimit(1)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            if canEdit {
+                                onRenameFolder()
+                            }
+                        }
+                        .onTapGesture(count: 1) {
+                            onToggle()
+                        }
+                }
                 
                 Spacer()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !isEditingFolder {
+                            onToggle()
+                        }
+                    }
                 
                 Text("\(folder.snippets.count)")
                     .font(.system(size: 11))
@@ -363,13 +731,44 @@ struct FolderRow: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .contentShape(Rectangle())
-            .onTapGesture {
-                onToggle()
-            }
             .contextMenu {
-                if !isShowingMaster {
-                    Button("削除", role: .destructive) {
+                if canEdit {
+                    Button {
+                        onAddSnippet()
+                    } label: {
+                        Label("新規スニペット追加", systemImage: "doc.badge.plus")
+                    }
+                    
+                    Button {
+                        onRenameFolder()
+                    } label: {
+                        Label("名前を変更", systemImage: "pencil")
+                    }
+                    
+                    Divider()
+                    
+                    if isAdmin {
+                        if isShowingMaster {
+                            Button {
+                                onDemoteFolder()
+                            } label: {
+                                Label("個別に降格", systemImage: "arrow.down.circle")
+                            }
+                        } else {
+                            Button {
+                                onPromoteFolder()
+                            } label: {
+                                Label("マスタに昇格", systemImage: "arrow.up.circle")
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    Button(role: .destructive) {
                         onDeleteFolder()
+                    } label: {
+                        Label("削除", systemImage: "trash")
                     }
                 }
             }
@@ -380,12 +779,24 @@ struct FolderRow: View {
                     SnippetRow(
                         snippet: snippet,
                         isSelected: selectedSnippetId == snippet.id,
+                        isEditing: editingSnippetId == snippet.id,
                         isShowingMaster: isShowingMaster,
+                        isAdmin: isAdmin,
+                        isReadOnly: isReadOnly,
                         onSelect: { onSelectSnippet(snippet) },
-                        onDelete: { onDeleteSnippet(snippet) }
+                        onDelete: { onDeleteSnippet(snippet) },
+                        onRename: { onRenameSnippet(snippet) },
+                        onAddSnippet: onAddSnippet,
+                        onPromoteSnippet: { onPromoteSnippet(snippet) },
+                        onDemoteSnippet: { onDemoteSnippet(snippet) },
+                        onCommitRename: { newTitle in
+                            onCommitSnippetRename?(snippet.id, newTitle)
+                        }
                     )
                     .onDrag {
+                        guard canEdit else { return NSItemProvider() }
                         self.draggingSnippet = snippet
+                        onStartDragSnippet(snippet)
                         return NSItemProvider(object: snippet.id as NSString)
                     }
                     .onDrop(of: [.text], delegate: SnippetDropDelegate(
@@ -397,6 +808,7 @@ struct FolderRow: View {
                 }
             }
         }
+        .contentShape(Rectangle())
     }
 }
 
@@ -424,49 +836,130 @@ struct SnippetDropDelegate: DropDelegate {
         onMove(IndexSet(integer: fromIndex), toIndex > fromIndex ? toIndex + 1 : toIndex)
     }
     
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        return DropProposal(operation: .move)
     }
-}
 
 // MARK: - Snippet Row
 
 struct SnippetRow: View {
     let snippet: Snippet
     let isSelected: Bool
+    let isEditing: Bool
     let isShowingMaster: Bool
+    let isAdmin: Bool
+    var isReadOnly: Bool = false
     let onSelect: () -> Void
     let onDelete: () -> Void
+    let onRename: () -> Void
+    let onAddSnippet: () -> Void
+    let onPromoteSnippet: () -> Void
+    let onDemoteSnippet: () -> Void
+    let onCommitRename: ((String) -> Void)?
+    
+    @State private var editingTitle: String = ""
+    @FocusState private var isTextFieldFocused: Bool
+    
+    private var canEdit: Bool {
+        !isReadOnly && (!isShowingMaster || isAdmin)
+    }
     
     var body: some View {
         HStack(spacing: 6) {
-            // インデント用スペース
             Color.clear.frame(width: 28)
             
             Image(systemName: "doc.text")
                 .foregroundColor(Color(.secondaryLabelColor))
                 .font(.system(size: 12))
             
-            Text(snippet.title)
-                .font(.system(size: 12))
-                .foregroundColor(Color(.labelColor))
-                .lineLimit(1)
+            if isEditing {
+                TextField("タイトル", text: $editingTitle)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color(.textBackgroundColor))
+                    .cornerRadius(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.accentColor, lineWidth: 2)
+                    )
+                    .focused($isTextFieldFocused)
+                    .onSubmit {
+                        onCommitRename?(editingTitle)
+                    }
+                    .onAppear {
+                        editingTitle = snippet.title
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            isTextFieldFocused = true
+                        }
+                    }
+                    .onChange(of: isTextFieldFocused) { _, focused in
+                        if !focused && isEditing {
+                            onCommitRename?(editingTitle)
+                        }
+                    }
+            } else {
+                Text(snippet.title)
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(.labelColor))
+                    .lineLimit(1)
+            }
             
             Spacer()
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .background(isSelected || isEditing ? Color.accentColor.opacity(0.2) : Color.clear)
         .cornerRadius(4)
         .padding(.horizontal, 4)
         .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
+        .onTapGesture(count: 2) {
+            if !isEditing && canEdit {
+                onRename()
+            }
+        }
+        .onTapGesture(count: 1) {
+            if !isEditing {
+                onSelect()
+            }
         }
         .contextMenu {
-            if !isShowingMaster {
-                Button("削除", role: .destructive) {
+            if canEdit {
+                Button {
+                    onAddSnippet()
+                } label: {
+                    Label("新規スニペット追加", systemImage: "doc.badge.plus")
+                }
+                
+                Button {
+                    onRename()
+                } label: {
+                    Label("名前を変更", systemImage: "pencil")
+                }
+                
+                Divider()
+                
+                if isAdmin {
+                    if isShowingMaster {
+                        Button {
+                            onDemoteSnippet()
+                        } label: {
+                            Label("個別に降格", systemImage: "arrow.down.circle")
+                        }
+                    } else {
+                        Button {
+                            onPromoteSnippet()
+                        } label: {
+                            Label("マスタに昇格", systemImage: "arrow.up.circle")
+                        }
+                    }
+                }
+                
+                Divider()
+                
+                Button(role: .destructive) {
                     onDelete()
+                } label: {
+                    Label("削除", systemImage: "trash")
                 }
             }
         }
@@ -504,3 +997,4 @@ struct AddFolderSheet: View {
         .background(Color(.windowBackgroundColor))
     }
 }
+

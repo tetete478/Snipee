@@ -156,7 +156,7 @@
             <div class="theme-dot" data-theme="pistachio" title="Pistachio" onclick="selectTheme('pistachio')" style="background: #e4f5e8;"></div>
             <div class="theme-dot" data-theme="aqua" title="Aqua" onclick="selectTheme('aqua')" style="background: #ddf2f5;"></div>
             <div class="theme-dot" data-theme="periwinkle" title="Periwinkle" onclick="selectTheme('periwinkle')" style="background: #e4e8fc;"></div>
-            <div class="theme-dot" data-theme="wisteria" title="Wisteria" onclick="selectTheme('wisteria')" style="background: #ede4f5;"></div>
+            <div class="theme-dot" data-theme="lavender" title="Lavender" onclick="selectTheme('lavender')" style="background: #f0e8f8;"></div>
           </div>
         </div>
       </div>
@@ -164,26 +164,27 @@
       <!-- ========== 表示・操作タブ ========== -->
       <div class="tab-content" id="display-tab">
         <div class="section">
-          <div class="section-header"><h2>👁️ フォルダの表示設定</h2></div>
-          <div class="section-description">表示したくないフォルダのチェックを外してください。</div>
+          <div class="section-header"><h2>📁 フォルダ表示設定</h2></div>
+          <div class="section-description">表示したいフォルダにチェックを入れてください。</div>
           <div id="folder-alert" class="alert"></div>
-          <div id="folder-list" style="max-height: 150px; overflow-y: auto; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 8px;">
-            <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">フォルダを読み込んでいます...</div>
-          </div>
-          <div class="btn-group" style="margin-top: 8px;">
-            <button class="btn btn-primary" onclick="saveFolderSettings()">💾 設定を保存</button>
-            <button class="btn btn-secondary" onclick="selectAllFolders()">☑️ すべて表示</button>
-            <button class="btn btn-secondary" onclick="deselectAllFolders()">☐ すべて非表示</button>
+          <div id="folder-list" style="max-height: 140px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: var(--border-radius); margin-bottom: 8px;"></div>
+          <div class="btn-group" style="margin-bottom: 8px;">
+            <button class="btn btn-secondary" onclick="selectAllFolders()">全選択</button>
+            <button class="btn btn-secondary" onclick="deselectAllFolders()">全解除</button>
+            <button class="btn btn-primary" onclick="saveFolderSettings()">💾 保存</button>
           </div>
         </div>
         <div class="section">
-          <div class="section-header"><h2>📍 ウィンドウ位置設定</h2></div>
-          <div class="section-description">ウィンドウの表示位置を設定できます。</div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <label style="display: flex; align-items: center; cursor: pointer;"><input type="radio" name="windowPosition" value="cursor" style="margin-right: 8px;"><span>マウスカーソル位置に表示</span></label>
-            <label style="display: flex; align-items: center; cursor: pointer;"><input type="radio" name="windowPosition" value="previous" style="margin-right: 8px;"><span>前回の位置に表示</span></label>
+          <div class="section-header"><h2>📍 ウィンドウ位置</h2></div>
+          <div class="section-description">クリップボードウィンドウの表示位置を設定します。</div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="windowPosition" value="cursor" style="width: auto;"> カーソル位置に表示
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 6px;">
+              <input type="radio" name="windowPosition" value="previous" style="width: auto;"> 前回の位置に表示
+            </label>
           </div>
-          <p style="margin: 8px 0 0 0; font-size: 11px; color: #666;">「前回の位置」を選ぶと、ウィンドウを移動した位置を記憶します</p>
         </div>
         <div class="section">
           <div class="section-header"><h2>⌨️ ホットキー設定</h2></div>
@@ -194,7 +195,7 @@
               <input type="text" id="hotkey-main" readonly>
               <button class="btn btn-secondary" onclick="showHotkeyModal('main')">変更</button>
             </div>
-            <div class="help-text">クリップボード履歴を開きます（デフォルト: <span id="default-main">Command+Control+C</span>）</div>
+            <div class="help-text">クリップボード履歴を開きます（デフォルト: Ctrl+Alt+C）</div>
           </div>
           <div class="form-group">
             <div class="hotkey-display">
@@ -202,7 +203,7 @@
               <input type="text" id="hotkey-snippet" readonly>
               <button class="btn btn-secondary" onclick="showHotkeyModal('snippet')">変更</button>
             </div>
-            <div class="help-text">スニペットのみを開きます（デフォルト: <span id="default-snippet">Command+Control+V</span>）</div>
+            <div class="help-text">スニペットのみを開きます（デフォルト: Ctrl+Alt+V）</div>
           </div>
           <div id="shortcut-alert" class="alert"></div>
           <div class="btn-group"><button class="btn btn-secondary" onclick="resetAllHotkeys()">🔄 デフォルトに戻す</button></div>
@@ -290,7 +291,7 @@
       <div class="form-group">
         <label>新しいホットキーを押してください</label>
         <input type="text" id="hotkey-input" readonly placeholder="キーを押してください..." style="font-size: 16px; text-align: center; padding: 16px; background: #f8f9fa;">
-        <div class="help-text">Modifierキー（Command, Control, Alt, Shift）とキーの組み合わせを押してください</div>
+        <div class="help-text">Modifierキー（Control, Alt, Shift）とキーの組み合わせを押してください</div>
       </div>
       <div id="hotkey-error" style="display: none; color: #dc3545; font-size: 12px; margin-top: 8px; padding: 8px; background: #ffebee; border-radius: 4px;"></div>
       <div class="modal-actions">
@@ -310,13 +311,8 @@
     let currentTabIndex = 0;
     let capturedHotkey = null;
     let currentEditingType = null;
-    const isMac = process.platform === 'darwin';
 
     window.addEventListener('DOMContentLoaded', async () => {
-      if (!isMac) {
-        document.getElementById('default-main').textContent = 'Ctrl+Alt+C';
-        document.getElementById('default-snippet').textContent = 'Ctrl+Alt+V';
-      }
       await loadHotkeys();
       await loadSyncStatus();
       await loadMemberInfo();
@@ -343,8 +339,7 @@
         else if (key.startsWith('Digit')) key = key.replace('Digit', '');
         else key = e.key;
         const modifiers = [];
-        if (e.metaKey) modifiers.push('Command');
-        if (e.ctrlKey && !e.metaKey) modifiers.push('Control');
+        if (e.ctrlKey) modifiers.push('Control');
         if (e.altKey) modifiers.push('Alt');
         if (e.shiftKey) modifiers.push('Shift');
         if (modifiers.length === 0) {

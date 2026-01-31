@@ -7,12 +7,18 @@
 import AppKit
 import SwiftUI
 
-class SnippetEditorWindow {
+class SnippetEditorWindow: NSObject, NSWindowDelegate {
     static let shared = SnippetEditorWindow()
     
     private var window: NSWindow?
     
-    private init() {}
+    private override init() {
+        super.init()
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        window = nil
+    }
     
     func show() {
         if window == nil {
@@ -37,6 +43,7 @@ class SnippetEditorWindow {
         newWindow.setContentSize(NSSize(width: 1100, height: 700))
         newWindow.minSize = NSSize(width: 900, height: 500)
         newWindow.center()
+        newWindow.delegate = self
         
         self.window = newWindow
     }

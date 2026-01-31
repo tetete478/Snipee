@@ -17,18 +17,20 @@ struct OnboardingView: View {
                 .fill(Color(NSColor.windowBackgroundColor))
             
             VStack(spacing: 0) {
-                // Close button
+                // Close button (only if logged in)
                 HStack {
                     Spacer()
-                    Button(action: {
-                        markCompleted()
-                        onComplete()
-                    }) {
-                        Image(systemName: "xmark")
-                            .foregroundColor(.secondary)
-                            .padding(8)
+                    if isLoggedIn {
+                        Button(action: {
+                            markCompleted()
+                            onComplete()
+                        }) {
+                            Image(systemName: "xmark")
+                                .foregroundColor(.secondary)
+                                .padding(8)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
@@ -94,7 +96,7 @@ struct OnboardingView: View {
                 .font(.title2)
                 .fontWeight(.bold)
             
-            Text("ログインするとチームの\nマスタスニペットが使えます")
+            Text("Snipeeを使用するには\nログインが必要です")
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
             
@@ -106,6 +108,12 @@ struct OnboardingView: View {
                         .foregroundColor(.green)
                     Text("ログイン済み")
                 }
+                
+                Button(action: { currentStep = 2 }) {
+                    Text("次へ")
+                        .frame(width: 120)
+                }
+                .buttonStyle(.borderedProminent)
             } else {
                 Button(action: login) {
                     HStack {
@@ -115,13 +123,18 @@ struct OnboardingView: View {
                     .frame(width: 180)
                 }
                 .buttonStyle(.borderedProminent)
+                
+                if let error = loginError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text("※ログインしないと使用できません")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            
-            Button(action: { currentStep = 2 }) {
-                Text(isLoggedIn ? "次へ" : "スキップ")
-                    .frame(width: 120)
-            }
-            .buttonStyle(.bordered)
         }
     }
     
@@ -165,13 +178,46 @@ struct OnboardingView: View {
     
     // MARK: - Actions
     
+    @State private var loginError: String?
+    
     private func login() {
+        loginError = nil
+        
         GoogleAuthService.shared.startOAuthFlow { result in
             switch result {
             case .success:
-                isLoggedIn = true
+                // スプシでメンバー確認
+                self.verifyMembership()
+                
             case .failure(let error):
-                print("Login failed: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.loginError = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    private func verifyMembership() {
+        guard let email = GoogleAuthService.shared.userEmail else {
+            DispatchQueue.main.async {
+                self.loginError = "メールアドレスを取得できませんでした"
+                GoogleAuthService.shared.logout()
+            }
+            return
+        }
+        
+        GoogleSheetsService.shared.fetchMemberInfo(email: email) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    // メンバー確認OK
+                    self.isLoggedIn = true
+                    
+                case .failure:
+                    // メンバーリストにない → ログアウト
+                    GoogleAuthService.shared.logout()
+                    self.loginError = "メンバーリストに登録されていません。\n管理者に連絡してください。"
+                }
             }
         }
     }

@@ -18,15 +18,15 @@ enum Constants {
         static let clientId = "366174659528-of1spk0m9ohhd3kldc5fkbd5rdd73916.apps.googleusercontent.com"
         static let redirectUri = "com.addness.snipeemac:/oauth2callback"
         static let scopes = [
-            "https://www.googleapis.com/auth/spreadsheets.readonly",
-            "https://www.googleapis.com/auth/drive.readonly",
-            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
             "https://www.googleapis.com/auth/userinfo.email"
         ]
+        static let scopeVersion = 3
     }
     
     enum Sparkle {
-        static let appcastURL = "https://tetete478.github.io/snipee/appcast-mac.xml"
+        static let appcastURL = "https://tetete478.github.io/Snipee/appcast-mac.xml"
     }
     
     enum Keychain {

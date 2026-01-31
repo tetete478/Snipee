@@ -32,6 +32,15 @@ jobs:
           security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
       
+      - name: Update Version from Tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/mac-v}
+          echo "Version: $VERSION"
+          cd SnipeeMac/SnipeeMac/SnipeeMac
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" Info.plist
+          echo "Updated Info.plist to version $VERSION"
+      
       - name: Build
         run: |
           cd SnipeeMac/SnipeeMac
