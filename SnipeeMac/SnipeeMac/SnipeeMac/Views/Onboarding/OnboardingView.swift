@@ -17,23 +17,9 @@ struct OnboardingView: View {
                 .fill(Color(NSColor.windowBackgroundColor))
             
             VStack(spacing: 0) {
-                // Close button (only if logged in)
-                HStack {
-                    Spacer()
-                    if isLoggedIn {
-                        Button(action: {
-                            markCompleted()
-                            onComplete()
-                        }) {
-                            Image(systemName: "xmark")
-                                .foregroundColor(.secondary)
-                                .padding(8)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.top, 8)
-                .padding(.trailing, 8)
+                // ヘッダースペース（オンボーディング完了まで閉じられない）
+                Spacer()
+                    .frame(height: 24)
                 
                 // Content
                 Group {
@@ -64,7 +50,7 @@ struct OnboardingView: View {
         VStack(spacing: 16) {
             Image(systemName: "doc.on.clipboard.fill")
                 .font(.system(size: 48))
-                .foregroundColor(.accentColor)
+                .foregroundColor(.orange)
             
             Text("Snipeeへようこそ！")
                 .font(.title2)
@@ -81,6 +67,7 @@ struct OnboardingView: View {
                     .frame(width: 120)
             }
             .buttonStyle(.borderedProminent)
+            .tint(.orange)
         }
     }
     
@@ -90,7 +77,7 @@ struct OnboardingView: View {
         VStack(spacing: 16) {
             Image(systemName: "person.badge.key.fill")
                 .font(.system(size: 48))
-                .foregroundColor(.blue)
+                .foregroundColor(.orange)
             
             Text("Googleでログイン")
                 .font(.title2)
@@ -114,6 +101,7 @@ struct OnboardingView: View {
                         .frame(width: 120)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.orange)
             } else {
                 Button(action: login) {
                     HStack {
@@ -123,6 +111,7 @@ struct OnboardingView: View {
                     .frame(width: 180)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.orange)
                 
                 if let error = loginError {
                     Text(error)
@@ -164,6 +153,7 @@ struct OnboardingView: View {
                 .frame(width: 180)
             }
             .buttonStyle(.bordered)
+            .tint(.orange)
             
             Button(action: {
                 markCompleted()
@@ -173,6 +163,7 @@ struct OnboardingView: View {
                     .frame(width: 120)
             }
             .buttonStyle(.borderedProminent)
+            .tint(.orange)
         }
     }
     

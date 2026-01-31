@@ -285,6 +285,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     private func checkForUpdatesIfNeeded() {
+        // オンボーディング中（未ログイン）はスキップ
+        guard GoogleAuthService.shared.isLoggedIn else {
+            print("🔄 Not logged in, skipping update check")
+            return
+        }
+        
         let today = Calendar.current.startOfDay(for: Date())
         let lastCheckKey = "lastUpdateCheckDate"
         
