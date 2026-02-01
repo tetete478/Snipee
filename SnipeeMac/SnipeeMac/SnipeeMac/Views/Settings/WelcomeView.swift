@@ -223,6 +223,7 @@ struct WelcomeView: View {
                 TextField("例: 山田", text: $userName)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
+                    .foregroundColor(Color(hex: "1d1d1f"))
                     .padding(12)
                     .background(Color.white)
                     .overlay(
