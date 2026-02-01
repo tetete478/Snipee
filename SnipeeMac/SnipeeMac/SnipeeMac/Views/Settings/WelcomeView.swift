@@ -8,14 +8,17 @@ import SwiftUI
 struct WelcomeView: View {
     @State private var currentStep = 1
     @State private var userName = ""
+    @State private var isLoggedIn = false
+    @State private var loginError: String?
+    @State private var isLoggingIn = false
     @Environment(\.dismiss) private var dismiss
     
-    private let totalSteps = 4
+    private let totalSteps = 5
     
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(hex: "667eea"), Color(hex: "764ba2")],
+                colors: [Color(hex: "FF9500"), Color(hex: "FF6B00")],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -43,6 +46,7 @@ struct WelcomeView: View {
             if let saved = UserDefaults.standard.string(forKey: "userName"), !saved.isEmpty {
                 userName = saved
             }
+            isLoggedIn = GoogleAuthService.shared.isLoggedIn
         }
         .background(KeyEventHandling(
             onEnter: { nextStep() },
@@ -78,7 +82,7 @@ struct WelcomeView: View {
             ForEach(1...totalSteps, id: \.self) { step in
                 if step == currentStep {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(hex: "667eea"))
+                        .fill(Color(hex: "FF9500"))
                         .frame(width: 24, height: 8)
                 } else if step < currentStep {
                     Circle()
@@ -100,9 +104,10 @@ struct WelcomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 switch currentStep {
                 case 1: step1Welcome
-                case 2: step2Name
-                case 3: step3Hotkeys
-                case 4: step4Complete
+                case 2: step2Login
+                case 3: step3Name
+                case 4: step4Hotkeys
+                case 5: step5Complete
                 default: EmptyView()
                 }
             }
@@ -143,8 +148,63 @@ struct WelcomeView: View {
         }
     }
     
-    // MARK: - Step 2: Name Input
-    private var step2Name: some View {
+    // MARK: - Step 2: Login
+    private var step2Login: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "person.badge.key.fill")
+                .font(.system(size: 40))
+                .foregroundColor(Color(hex: "FF9500"))
+            
+            Text("Googleでログイン")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(Color(hex: "1d1d1f"))
+            
+            Text("Snipeeを使用するには\n社内アカウントでログインが必要です")
+                .font(.system(size: 13))
+                .foregroundColor(Color(hex: "86868b"))
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+            
+            if isLoggedIn {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("ログイン済み")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "1d1d1f"))
+                }
+                .padding(.top, 8)
+            } else {
+                Button(action: login) {
+                    HStack {
+                        if isLoggingIn {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "person.badge.key.fill")
+                        }
+                        Text(isLoggingIn ? "ログイン中..." : "Googleでログイン")
+                    }
+                    .frame(width: 200)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(isLoggingIn)
+                .padding(.top, 8)
+                
+                if let error = loginError {
+                    Text(error)
+                        .font(.system(size: 12))
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 4)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    // MARK: - Step 3: Name Input
+    private var step3Name: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("お名前を教えてください")
                 .font(.system(size: 18, weight: .semibold))
@@ -178,8 +238,8 @@ struct WelcomeView: View {
         }
     }
     
-    // MARK: - Step 3: Hotkeys
-    private var step3Hotkeys: some View {
+    // MARK: - Step 4: Hotkeys
+    private var step4Hotkeys: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("ホットキーを覚えましょう")
                 .font(.system(size: 18, weight: .semibold))
@@ -251,8 +311,8 @@ struct WelcomeView: View {
         .cornerRadius(8)
     }
     
-    // MARK: - Step 4: Complete
-    private var step4Complete: some View {
+    // MARK: - Step 5: Complete
+    private var step5Complete: some View {
         VStack(spacing: 12) {
             Text("🎉")
                 .font(.system(size: 36))
@@ -277,7 +337,7 @@ struct WelcomeView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("💡 Tips")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hex: "667eea"))
+                .foregroundColor(Color(hex: "FF9500"))
             
             HStack(spacing: 2) {
                 Text("ウィンドウは")
@@ -296,11 +356,11 @@ struct WelcomeView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: "f0f4ff"))
+        .background(Color(hex: "FFF4E6"))
         .overlay(
             Rectangle()
                 .frame(width: 3)
-                .foregroundColor(Color(hex: "667eea")),
+                .foregroundColor(Color(hex: "FF9500")),
             alignment: .leading
         )
         .cornerRadius(8)
@@ -322,7 +382,7 @@ struct WelcomeView: View {
     // MARK: - Footer
     private var footerView: some View {
         HStack {
-            if currentStep < totalSteps {
+            if currentStep < totalSteps && isLoggedIn {
                 Button("スキップ") {
                     skipWizard()
                 }
@@ -359,7 +419,12 @@ struct WelcomeView: View {
     
     // MARK: - Actions
     private func nextStep() {
-        if currentStep == 2 {
+        // ログインステップではログイン必須
+        if currentStep == 2 && !isLoggedIn {
+            return
+        }
+        
+        if currentStep == 3 {
             UserDefaults.standard.set(userName, forKey: "userName")
         }
         
@@ -381,13 +446,61 @@ struct WelcomeView: View {
     }
     
     private func skipWizard() {
+        // ログインしてないとスキップ不可
+        guard isLoggedIn else { return }
         completeWizard()
     }
     
     private func completeWizard() {
         UserDefaults.standard.set(true, forKey: "welcomeCompleted")
+        
+        // Sparkleを開始
+        AppDelegate.shared?.startSparkleUpdater()
+        
         dismiss()
         NSApplication.shared.keyWindow?.close()
+    }
+    
+    private func login() {
+        isLoggingIn = true
+        loginError = nil
+        
+        GoogleAuthService.shared.startOAuthFlow { result in
+            switch result {
+            case .success:
+                self.verifyMembership()
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    self.isLoggingIn = false
+                    self.loginError = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    private func verifyMembership() {
+        guard let email = GoogleAuthService.shared.userEmail else {
+            DispatchQueue.main.async {
+                self.isLoggingIn = false
+                self.loginError = "メールアドレスを取得できませんでした"
+                GoogleAuthService.shared.logout()
+            }
+            return
+        }
+        
+        GoogleSheetsService.shared.fetchMemberInfo(email: email) { result in
+            DispatchQueue.main.async {
+                self.isLoggingIn = false
+                
+                switch result {
+                case .success:
+                    self.isLoggedIn = true
+                case .failure:
+                    GoogleAuthService.shared.logout()
+                    self.loginError = "メンバーリストに登録されていません。\n管理者に連絡してください。"
+                }
+            }
+        }
     }
 }
 
@@ -399,7 +512,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .foregroundColor(.white)
             .padding(.horizontal, 24)
             .padding(.vertical, 10)
-            .background(configuration.isPressed ? Color(hex: "5a6fd6") : Color(hex: "667eea"))
+            .background(configuration.isPressed ? Color(hex: "E08600") : Color(hex: "FF9500"))
             .cornerRadius(8)
     }
 }
