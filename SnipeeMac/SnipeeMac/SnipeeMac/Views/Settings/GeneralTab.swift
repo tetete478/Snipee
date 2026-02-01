@@ -107,7 +107,17 @@ struct GeneralTab: View {
                     .font(.headline)
                 
                 Button(action: {
-                    OnboardingWindow.shared.show()
+                    // WelcomeViewを表示
+                    let welcomeView = WelcomeView()
+                    let hostingController = NSHostingController(rootView: welcomeView)
+                    let welcomeWindow = NSWindow(contentViewController: hostingController)
+                    welcomeWindow.title = "ようこそ - Snipee"
+                    welcomeWindow.styleMask = [.titled, .closable, .fullSizeContentView]
+                    welcomeWindow.backgroundColor = .clear
+                    welcomeWindow.setContentSize(NSSize(width: 500, height: 540))
+                    welcomeWindow.center()
+                    welcomeWindow.makeKeyAndOrderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
                 }) {
                     HStack {
                         Image(systemName: "arrow.counterclockwise")
