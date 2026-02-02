@@ -14,6 +14,7 @@ class StorageService {
     private enum Keys {
         static let history = "clipboard_history"
         static let personalSnippets = "personal_snippets"
+        static let personalSnippetsBackup = "personal_snippets_backup"
         static let masterSnippets = "master_snippets"
         static let settings = "app_settings"
         static let hasCompletedOnboarding = "has_completed_onboarding"
@@ -66,6 +67,9 @@ class StorageService {
     }
 
     func savePersonalSnippets(_ folders: [SnippetFolder]) {
+        if let currentData = userDefaults.data(forKey: Keys.personalSnippets) {
+            userDefaults.set(currentData, forKey: Keys.personalSnippetsBackup)
+        }
         guard let data = try? JSONEncoder().encode(folders) else {
             return
         }

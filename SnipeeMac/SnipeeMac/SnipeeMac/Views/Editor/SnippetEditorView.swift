@@ -173,8 +173,14 @@ struct SnippetEditorView: View {
         HStack {
             Spacer()
             
-            if isAdmin {
-                otherDepartmentButton
+            if isViewingOtherDepartment {
+                Button(action: closeOtherDepartmentView) {
+                    HStack(spacing: 4) {
+                        Text(selectedOtherDepartment?.name ?? "")
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                }
+                .foregroundColor(.orange)
             }
             
             Button(action: { syncSnippets() }) {
@@ -185,11 +191,12 @@ struct SnippetEditorView: View {
             exportMenu
             
             if isAdmin && !isViewingOtherDepartment {
-                Button(action: uploadMasterSnippets) {
-                    Label("マスタ更新", systemImage: "icloud.and.arrow.up")
-                }
-                .help("マスタスニペットをアップロード")
+            otherDepartmentMenu
+            
+            Button(action: uploadMasterSnippets) {
+                Label("マスタ更新", systemImage: "icloud.and.arrow.up")
             }
+        }
             
             if isUploading {
                 ProgressView()
@@ -201,27 +208,16 @@ struct SnippetEditorView: View {
         .background(Color(.windowBackgroundColor))
     }
     
-    @ViewBuilder
-    private var otherDepartmentButton: some View {
-        if isViewingOtherDepartment {
-            Button(action: closeOtherDepartmentView) {
-                HStack(spacing: 4) {
-                    Text(selectedOtherDepartment?.name ?? "")
-                    Image(systemName: "xmark.circle.fill")
+    private var otherDepartmentMenu: some View {
+        Menu {
+            ForEach(allDepartments.filter { $0.name != userDepartment }, id: \.name) { dept in
+                Button(dept.name) {
+                    selectedOtherDepartment = dept
+                    loadOtherDepartmentSnippets()
                 }
             }
-            .foregroundColor(.orange)
-        } else {
-            Menu {
-                ForEach(allDepartments.filter { $0.name != userDepartment }, id: \.name) { dept in
-                    Button(dept.name) {
-                        selectedOtherDepartment = dept
-                        loadOtherDepartmentSnippets()
-                    }
-                }
-            } label: {
-                Label("他部署マスタ", systemImage: "building.2")
-            }
+        } label: {
+            Label("他部署マスタ", systemImage: "building.2")
         }
     }
     
