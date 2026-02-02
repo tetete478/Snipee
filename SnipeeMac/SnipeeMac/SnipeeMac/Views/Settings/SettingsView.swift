@@ -8,10 +8,9 @@ import SwiftUI
 
 enum SettingsTab: String, CaseIterable {
     case general = "一般"
-    case display = "表示・操作"
+    case display = "表示"
     case account = "アカウント"
     case help = "ヘルプ"
-    case admin = "管理者"
 }
 
 struct SettingsView: View {
@@ -66,8 +65,6 @@ struct SettingsView: View {
                         AccountTab()
                     case .help:
                         HelpTab()
-                    case .admin:
-                        AdminTab()
                     }
                 }
                 .padding()
@@ -79,7 +76,7 @@ struct SettingsView: View {
             onRight: { selectNextTab() },
             onEscape: { NSApplication.shared.keyWindow?.close() }
         ))
-    }
+        }
     
     private func selectPreviousTab() {
         let allTabs = SettingsTab.allCases

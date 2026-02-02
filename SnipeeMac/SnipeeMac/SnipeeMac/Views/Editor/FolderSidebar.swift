@@ -60,9 +60,111 @@ struct FolderSidebar: View {
             
             Divider()
             
-            // 階層式リスト（マスタ + 個別）
+            // 階層式リスト（個別 + マスタ）
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    // MARK: - 個別セクション
+                    if !isReadOnly {
+                        SectionHeader(
+                            title: "個別",
+                            count: personalFolders.count,
+                            isExpanded: isPersonalSectionExpanded,
+                            onToggle: { isPersonalSectionExpanded.toggle() }
+                        )
+                        .onDrop(of: [.text], delegate: SectionDropDelegate(
+                            isMasterSection: false,
+                            draggingSnippet: $draggingSnippet,
+                            draggingSnippetSourceFolder: $draggingSnippetSourceFolder,
+                            draggingSnippetIsMaster: $draggingSnippetIsMaster,
+                            draggingFolder: $draggingFolder,
+                            draggingFolderIsMaster: $draggingFolderIsMaster,
+                            onPromoteSnippet: onPromoteSnippet,
+                            onDemoteSnippet: onDemoteSnippet,
+                            onPromoteFolder: onPromoteFolder,
+                            onDemoteFolder: onDemoteFolder
+                        ))
+                        
+                        if isPersonalSectionExpanded {
+                            ForEach(personalFolders) { folder in
+                                FolderRow(
+                                    folder: folder,
+                                    isExpanded: expandedPersonalFolderIds.contains(folder.id),
+                                    selectedSnippetId: $selectedSnippetId,
+                                    editingSnippetId: $editingSnippetId,
+                                    editingFolderId: $editingFolderId,
+                                    isShowingMaster: false,
+                                    isAdmin: isAdmin,
+                                    draggingSnippet: $draggingSnippet,
+                                    onToggle: { togglePersonalFolder(folder.id) },
+                                    onSelectSnippet: { snippet in
+                                        editingSnippetId = nil
+                                        editingFolderId = nil
+                                        isShowingMaster = false
+                                        selectedFolderId = folder.id
+                                        selectedSnippetId = snippet.id
+                                    },
+                                    onDeleteFolder: { deleteFolder(folder) },
+                                    onDeleteSnippet: { snippet in
+                                        deleteSnippet(snippet, from: folder)
+                                    },
+                                    onMoveSnippet: { from, to in
+                                        movePersonalSnippet(in: folder, from: from, to: to)
+                                    },
+                                    onRenameFolder: {
+                                        editingFolderId = folder.id
+                                    },
+                                    onRenameSnippet: { snippet in
+                                        editingSnippetId = snippet.id
+                                    },
+                                    onAddSnippet: {
+                                        addSnippetInline(to: folder, isMaster: false)
+                                    },
+                                    onStartDragSnippet: { snippet in
+                                        draggingSnippetSourceFolder = folder
+                                        draggingSnippetIsMaster = false
+                                    },
+                                    onPromoteFolder: { onPromoteFolder?(folder) },
+                                    onDemoteFolder: { },
+                                    onPromoteSnippet: { snippet in onPromoteSnippet?(snippet, folder.name) },
+                                    onDemoteSnippet: { _ in },
+                                    onCommitSnippetRename: { snippetId, newTitle in
+                                        commitSnippetRename(snippetId: snippetId, newTitle: newTitle, isMaster: false)
+                                    },
+                                    onCommitFolderRename: { newName in
+                                        commitFolderRename(folderId: folder.id, newName: newName, isMaster: false)
+                                    }
+                                )
+                                .onDrag {
+                                    self.draggingFolder = folder
+                                    self.draggingFolderIsMaster = false
+                                    self.expandedPersonalFolderIds.removeAll()
+                                    return NSItemProvider(object: folder.id as NSString)
+                                }
+                                .onDrop(of: [.text], delegate: FolderDropDelegate(
+                                    folder: folder,
+                                    folders: $personalFolders,
+                                    draggingFolder: $draggingFolder,
+                                    onSave: onSave
+                                ))
+                            }
+                            
+                            if personalFolders.isEmpty {
+                                Text("個別スニペットがありません")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(Color(.tertiaryLabelColor))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                            }
+                        }
+                        
+                        // MARK: - セパレーター
+                        Rectangle()
+                            .fill(Color(.separatorColor))
+                            .frame(height: 2)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 8)
+                    }
+                    
                     // MARK: - マスタセクション
                     SectionHeader(
                         title: "マスタ",
@@ -136,7 +238,6 @@ struct FolderSidebar: View {
                             )
                             .onDrag {
                                 guard !isReadOnly else { return NSItemProvider() }
-                                print("🟢 Drag started - folder: \(folder.name), isMaster: true")
                                 self.draggingFolder = folder
                                 self.draggingFolderIsMaster = true
                                 return NSItemProvider(object: folder.id as NSString)
@@ -156,109 +257,6 @@ struct FolderSidebar: View {
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                         }
-                    }
-                    
-                    if !isReadOnly {
-                        // MARK: - セパレーター
-                        Rectangle()
-                            .fill(Color(.separatorColor))
-                            .frame(height: 2)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 8)
-                        
-                        // MARK: - 個別セクション
-                        SectionHeader(
-                        title: "個別",
-                        count: personalFolders.count,
-                        isExpanded: isPersonalSectionExpanded,
-                        onToggle: { isPersonalSectionExpanded.toggle() }
-                    )
-                    .onDrop(of: [.text], delegate: SectionDropDelegate(
-                        isMasterSection: false,
-                        draggingSnippet: $draggingSnippet,
-                        draggingSnippetSourceFolder: $draggingSnippetSourceFolder,
-                        draggingSnippetIsMaster: $draggingSnippetIsMaster,
-                        draggingFolder: $draggingFolder,
-                        draggingFolderIsMaster: $draggingFolderIsMaster,
-                        onPromoteSnippet: onPromoteSnippet,
-                        onDemoteSnippet: onDemoteSnippet,
-                        onPromoteFolder: onPromoteFolder,
-                        onDemoteFolder: onDemoteFolder
-                    ))
-                    
-                    if isPersonalSectionExpanded {
-                        ForEach(personalFolders) { folder in
-                            FolderRow(
-                                folder: folder,
-                                isExpanded: expandedPersonalFolderIds.contains(folder.id),
-                                selectedSnippetId: $selectedSnippetId,
-                                editingSnippetId: $editingSnippetId,
-                                editingFolderId: $editingFolderId,
-                                isShowingMaster: false,
-                                isAdmin: isAdmin,
-                                draggingSnippet: $draggingSnippet,
-                                onToggle: { togglePersonalFolder(folder.id) },
-                                onSelectSnippet: { snippet in
-                                    editingSnippetId = nil
-                                    editingFolderId = nil
-                                    isShowingMaster = false
-                                    selectedFolderId = folder.id
-                                    selectedSnippetId = snippet.id
-                                },
-                                onDeleteFolder: { deleteFolder(folder) },
-                                onDeleteSnippet: { snippet in
-                                    deleteSnippet(snippet, from: folder)
-                                },
-                                onMoveSnippet: { from, to in
-                                    movePersonalSnippet(in: folder, from: from, to: to)
-                                },
-                                onRenameFolder: {
-                                    editingFolderId = folder.id
-                                },
-                                onRenameSnippet: { snippet in
-                                    editingSnippetId = snippet.id
-                                },
-                                onAddSnippet: {
-                                    addSnippetInline(to: folder, isMaster: false)
-                                },
-                                onStartDragSnippet: { snippet in
-                                    draggingSnippetSourceFolder = folder
-                                    draggingSnippetIsMaster = false
-                                },
-                                onPromoteFolder: { onPromoteFolder?(folder) },
-                                onDemoteFolder: { },
-                                onPromoteSnippet: { snippet in onPromoteSnippet?(snippet, folder.name) },
-                                onDemoteSnippet: { _ in },
-                                onCommitSnippetRename: { snippetId, newTitle in
-                                    commitSnippetRename(snippetId: snippetId, newTitle: newTitle, isMaster: false)
-                                },
-                                onCommitFolderRename: { newName in
-                                    commitFolderRename(folderId: folder.id, newName: newName, isMaster: false)
-                                }
-                            )
-                            .onDrag {
-                                print("🟢 Drag started - folder: \(folder.name), isMaster: false")
-                                self.draggingFolder = folder
-                                self.draggingFolderIsMaster = false
-                                self.expandedPersonalFolderIds.removeAll()
-                                return NSItemProvider(object: folder.id as NSString)
-                            }
-                            .onDrop(of: [.text], delegate: FolderDropDelegate(
-                                folder: folder,
-                                folders: $personalFolders,
-                                draggingFolder: $draggingFolder,
-                                onSave: onSave
-                            ))
-                        }
-                        
-                        if personalFolders.isEmpty {
-                            Text("個別スニペットがありません")
-                                .font(.system(size: 11))
-                                .foregroundColor(Color(.tertiaryLabelColor))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                        }
-                    }
                     }
                 }
                 .padding(.vertical, 4)
@@ -535,8 +533,6 @@ struct SectionDropDelegate: DropDelegate {
     var onDemoteFolder: ((SnippetFolder) -> Void)?
     
     func performDrop(info: DropInfo) -> Bool {
-        print("🔵 performDrop - snippet: \(draggingSnippet?.title ?? "nil"), folder: \(draggingFolder?.name ?? "nil")")
-        
         // スニペットのドロップ
         if let snippet = draggingSnippet, let folder = draggingSnippetSourceFolder {
             if isMasterSection && !draggingSnippetIsMaster {
@@ -570,9 +566,7 @@ struct SectionDropDelegate: DropDelegate {
     }
     
     func validateDrop(info: DropInfo) -> Bool {
-        let result = draggingSnippet != nil || draggingFolder != nil
-        print("🟡 validateDrop - snippet: \(draggingSnippet?.title ?? "nil"), folder: \(draggingFolder?.name ?? "nil"), result: \(result)")
-        return result
+        return draggingSnippet != nil || draggingFolder != nil
     }
     
     func dropUpdated(info: DropInfo) -> DropProposal? {

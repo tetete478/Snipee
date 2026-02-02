@@ -14,7 +14,7 @@ struct SnippetPopupView: View {
     @State private var masterFolders: [SnippetFolder] = []
     @State private var personalFolders: [SnippetFolder] = []
     
-    private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
+    private let theme: ColorTheme = .silver
     
     private var allFolders: [SnippetFolder] {
         masterFolders + personalFolders
@@ -199,12 +199,13 @@ struct SnippetPopupView: View {
     // MARK: - Data Loading
     
     private func loadSnippets() {
-        masterFolders = StorageService.shared.getMasterSnippets()
-        personalFolders = StorageService.shared.getPersonalSnippets()
+        let hiddenFolders = Set(StorageService.shared.getSettings().hiddenFolders)
+        masterFolders = StorageService.shared.getMasterSnippets().filter { !hiddenFolders.contains($0.name) }
+        personalFolders = StorageService.shared.getPersonalSnippets().filter { !hiddenFolders.contains($0.name) }
     }
     
     // MARK: - Keyboard Handler
-    
+
     private func setupKeyboardHandler() {
         PopupWindowController.shared.onKeyDown = { [self] keyCode in
             if isSubmenuOpen {
@@ -214,70 +215,44 @@ struct SnippetPopupView: View {
             }
         }
     }
-    
+
     private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
-        switch keyCode {
-        case 126: // Up
-            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: -1, count: totalSelectableCount)
-            return true
-        case 125: // Down
-            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: 1, count: totalSelectableCount)
-            return true
-        case 124: // Right
-            if selectedIndex < allFolders.count {
-                openSubmenuForFolder(at: selectedIndex)
-            }
-            return true
-        case 36: // Enter
-            executeSelectedItem()
-            return true
-        default:
-            if keyCode >= 101 && keyCode <= 109 {
-                let num = Int(keyCode) - 100
+        PopupKeyboardHandler.handleMainMenu(
+            keyCode: keyCode,
+            selectedIndex: &selectedIndex,
+            totalCount: totalSelectableCount,
+            onRight: {
+                if selectedIndex < allFolders.count {
+                    openSubmenuForFolder(at: selectedIndex)
+                }
+            },
+            onEnter: { executeSelectedItem() },
+            onNumberKey: { num in
                 if num <= allFolders.count {
                     selectedIndex = num - 1
                     openSubmenuForFolder(at: selectedIndex)
                 }
-                return true
             }
-            return false
-        }
+        )
     }
-    
+
     private func handleSubmenuKeyDown(_ keyCode: UInt16) -> Bool {
-        switch keyCode {
-        case 126: // Up
-            if submenuSelectedIndex > 0 {
-                submenuSelectedIndex -= 1
-            } else {
-                submenuSelectedIndex = submenuItems.count - 1
-            }
-            return true
-        case 125: // Down
-            if submenuSelectedIndex < submenuItems.count - 1 {
-                submenuSelectedIndex += 1
-            } else {
-                submenuSelectedIndex = 0
-            }
-            return true
-        case 123: // Left
-            closeSubmenu()
-            return true
-        case 36: // Enter
-            if submenuSelectedIndex < submenuItems.count {
-                pasteSnippet(submenuItems[submenuSelectedIndex])
-            }
-            return true
-        default:
-            if keyCode >= 101 && keyCode <= 109 {
-                let num = Int(keyCode) - 100
+        PopupKeyboardHandler.handleSubmenu(
+            keyCode: keyCode,
+            selectedIndex: &submenuSelectedIndex,
+            itemCount: submenuItems.count,
+            onClose: { closeSubmenu() },
+            onEnter: {
+                if submenuSelectedIndex < submenuItems.count {
+                    pasteSnippet(submenuItems[submenuSelectedIndex])
+                }
+            },
+            onNumberKey: { num in
                 if num <= submenuItems.count {
                     pasteSnippet(submenuItems[num - 1])
                 }
-                return true
             }
-            return false
-        }
+        )
     }
     
     // MARK: - Actions

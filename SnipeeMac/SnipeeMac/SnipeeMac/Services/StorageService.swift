@@ -64,9 +64,11 @@ class StorageService {
         }
         return folders
     }
-    
+
     func savePersonalSnippets(_ folders: [SnippetFolder]) {
-        guard let data = try? JSONEncoder().encode(folders) else { return }
+        guard let data = try? JSONEncoder().encode(folders) else {
+            return
+        }
         userDefaults.set(data, forKey: Keys.personalSnippets)
     }
     

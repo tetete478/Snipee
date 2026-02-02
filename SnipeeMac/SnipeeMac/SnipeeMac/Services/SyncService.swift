@@ -95,15 +95,11 @@ class SyncService {
     
     func uploadMasterSnippets(folders: [SnippetFolder], completion: @escaping (Result<Void, Error>) -> Void) {
         guard let department = UserDefaults.standard.string(forKey: "userDepartment") else {
-            print("❌ uploadMasterSnippets - department not found in UserDefaults")
             completion(.failure(SyncError.notLoggedIn))
             return
         }
-        
-        print("📤 uploadMasterSnippets - department: \(department)")
-        
+
         GoogleSheetsService.shared.fetchDepartmentFileId(department: department) { result in
-            print("📤 fetchDepartmentFileId result: \(result)")
             switch result {
             case .success(let fileId):
                 let xmlString = XMLParserHelper.export(folders: folders)

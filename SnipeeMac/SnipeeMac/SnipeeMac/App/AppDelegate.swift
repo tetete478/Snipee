@@ -233,12 +233,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         
         SyncService.shared.syncMasterSnippets { result in
             switch result {
-            case .success(let syncResult):
-                print("Auto sync success: \(syncResult.folderCount) folders, \(syncResult.snippetCount) snippets")
+            case .success:
                 // ユーザーステータスをスプシに送信
                 UserReportService.shared.reportUserStatus()
-            case .failure(let error):
-                print("Auto sync failed: \(error.localizedDescription)")
+            case .failure:
+                break
             }
         }
     }
@@ -282,12 +281,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         
         do {
             try updaterController.updater.start()
-            print("🔄 Sparkle started successfully")
         } catch {
-            print("🔄 Sparkle start failed: \(error)")
+            // Sparkle start failed
         }
-        
-        print("🔄 feedURL: \(String(describing: updaterController.updater.feedURL))")
         
         // その日の初回起動時のみチェック
         checkForUpdatesIfNeeded()
@@ -296,7 +292,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private func checkForUpdatesIfNeeded() {
         // オンボーディング中（未ログイン）はスキップ
         guard GoogleAuthService.shared.isLoggedIn else {
-            print("🔄 Not logged in, skipping update check")
             return
         }
         
@@ -306,12 +301,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         if let lastCheck = UserDefaults.standard.object(forKey: lastCheckKey) as? Date {
             let lastCheckDay = Calendar.current.startOfDay(for: lastCheck)
             if lastCheckDay >= today {
-                print("🔄 Already checked today, skipping")
                 return
             }
         }
-        
-        print("🔄 First launch today, checking for updates")
         UserDefaults.standard.set(Date(), forKey: lastCheckKey)
         
         // 少し遅延させてチェック（起動処理完了後）
@@ -323,7 +315,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     // MARK: - SPUUpdaterDelegate
     
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
-        print("🔄 didFindValidUpdate: \(item.displayVersionString)")
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(
             name: .updateCheckCompleted,
@@ -333,7 +324,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
-        print("🔄 updaterDidNotFindUpdate - already up to date")
         NotificationCenter.default.post(
             name: .updateCheckCompleted,
             object: nil,
@@ -342,7 +332,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     func updater(_ updater: SPUUpdater, didFailToFindUpdateWithError error: Error) {
-        print("🔄 didFailToFindUpdateWithError: \(error.localizedDescription)")
         NotificationCenter.default.post(
             name: .updateCheckCompleted,
             object: nil,
@@ -351,13 +340,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        print("アップデート中断: \(error.localizedDescription)")
+        // Update aborted
     }
-    
+
     func checkForUpdates() {
-        print("🔄 checkForUpdates called")
         updaterController.checkForUpdates(nil)
-        print("🔄 checkForUpdates finished")
     }
 }
 

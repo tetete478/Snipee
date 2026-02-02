@@ -211,10 +211,8 @@ struct AccountTab: View {
                 if let name = syncResult.memberName { userName = name }
                 if let dept = syncResult.memberDepartment { userDepartment = dept }
                 if let role = syncResult.memberRole { userRole = role }
-                print("Sync success: \(syncResult.folderCount) folders, \(syncResult.snippetCount) snippets")
             case .failure(let error):
                 syncError = error.localizedDescription
-                print("Sync failed: \(error.localizedDescription)")
             }
         }
     }

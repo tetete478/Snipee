@@ -22,8 +22,8 @@ class UserReportService {
             switch result {
             case .success(let token):
                 self?.findUserRowAndUpdate(token: token, email: email)
-            case .failure(let error):
-                print("UserReport: トークン取得失敗 - \(error.localizedDescription)")
+            case .failure:
+                break
             }
         }
     }
@@ -44,10 +44,9 @@ class UserReportService {
             guard let data = data,
                   let sheetData = try? JSONDecoder().decode(SheetResponse.self, from: data),
                   let values = sheetData.values else {
-                print("UserReport: メール列取得失敗")
                 return
             }
-            
+
             // メールアドレスで行番号を検索（1-indexed、ヘッダー含む）
             for (index, row) in values.enumerated() {
                 if let cellEmail = row.first, cellEmail.lowercased() == email.lowercased() {
@@ -56,8 +55,6 @@ class UserReportService {
                     return
                 }
             }
-            
-            print("UserReport: ユーザーが見つかりません - \(email)")
         }.resume()
     }
     
@@ -85,17 +82,8 @@ class UserReportService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = jsonData
         
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("UserReport: 更新失敗 - \(error.localizedDescription)")
-                return
-            }
-            
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                print("UserReport: 更新成功 - v\(version), \(lastActive), \(snippetCount)件")
-            } else {
-                print("UserReport: 更新失敗 - HTTPステータス異常")
-            }
+        URLSession.shared.dataTask(with: request) { _, _, _ in
+            // Silent update
         }.resume()
     }
     

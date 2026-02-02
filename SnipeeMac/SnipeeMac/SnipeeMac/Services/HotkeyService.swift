@@ -110,7 +110,7 @@ class HotkeyService {
         )
         
         if status != noErr {
-            print("Failed to register hotkey \(id): \(status)")
+            // Hotkey registration failed
         }
     }
     

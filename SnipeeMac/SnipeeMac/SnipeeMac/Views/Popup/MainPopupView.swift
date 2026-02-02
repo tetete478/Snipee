@@ -13,7 +13,7 @@ struct MainPopupView: View {
     @State private var historySubmenuItems: [HistoryItem] = []
     @State private var submenuSelectedIndex: Int = 0
 
-    private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
+    private let theme: ColorTheme = .silver
     
     private var pinnedItems: [HistoryItem] {
         clipboardService.history.filter { $0.isPinned }
@@ -45,7 +45,9 @@ struct MainPopupView: View {
     }
     
     private var snippetFolders: [SnippetFolder] {
-        StorageService.shared.getMasterSnippets() + StorageService.shared.getPersonalSnippets()
+        let hiddenFolders = Set(StorageService.shared.getSettings().hiddenFolders)
+        let allFolders = StorageService.shared.getMasterSnippets() + StorageService.shared.getPersonalSnippets()
+        return allFolders.filter { !hiddenFolders.contains($0.name) }
     }
     
     private var totalSelectableCount: Int {
@@ -214,7 +216,6 @@ struct MainPopupView: View {
     )
     PopupWindowController.shared.showSubmenu(content: content)
 }
-    // 修正後
     private func setupKeyboardHandler() {
         PopupWindowController.shared.onKeyDown = { [self] keyCode in
             if isSubmenuOpen {
@@ -226,75 +227,51 @@ struct MainPopupView: View {
     }
 
     private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
-        switch keyCode {
-        case 126: // Up
-            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: -1, count: totalSelectableCount)
-            return true
-        case 125: // Down
-            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: 1, count: totalSelectableCount)
-            return true
-        case 124: // Right - サブメニュー展開
-            let historyStartIndex = pinnedItems.count
-            let historyEndIndex = historyStartIndex + historyGroups.count
-            let folderEndIndex = historyEndIndex + snippetFolders.count
-            
-            if selectedIndex >= historyStartIndex && selectedIndex < historyEndIndex {
-                openHistorySubmenu(at: selectedIndex - historyStartIndex)
-            } else if selectedIndex >= historyEndIndex && selectedIndex < folderEndIndex {
-                openSubmenuForSelectedFolder()
-            }
-            return true
-        case 36: // Enter
-            executeSelectedItem()
-            return true
-        default:
-            if keyCode >= 101 && keyCode <= 109 {
-                let num = Int(keyCode) - 100
+        PopupKeyboardHandler.handleMainMenu(
+            keyCode: keyCode,
+            selectedIndex: &selectedIndex,
+            totalCount: totalSelectableCount,
+            onRight: {
+                let historyStartIndex = pinnedItems.count
+                let historyEndIndex = historyStartIndex + historyGroups.count
+                let folderEndIndex = historyEndIndex + snippetFolders.count
+
+                if selectedIndex >= historyStartIndex && selectedIndex < historyEndIndex {
+                    openHistorySubmenu(at: selectedIndex - historyStartIndex)
+                } else if selectedIndex >= historyEndIndex && selectedIndex < folderEndIndex {
+                    openSubmenuForSelectedFolder()
+                }
+            },
+            onEnter: { executeSelectedItem() },
+            onNumberKey: { num in
                 if num <= pinnedItems.count {
                     pasteItem(pinnedItems[num - 1])
                 }
-                return true
             }
-            return false
-        }
+        )
     }
 
     private func handleSubmenuKeyDown(_ keyCode: UInt16) -> Bool {
         let isHistorySubmenu = !historySubmenuItems.isEmpty
         let itemCount = isHistorySubmenu ? historySubmenuItems.count : submenuItems.count
-        
-        switch keyCode {
-        case 126: // Up
-            if submenuSelectedIndex > 0 {
-                submenuSelectedIndex -= 1
-            } else {
-                submenuSelectedIndex = itemCount - 1
-            }
-            return true
-        case 125: // Down
-            if submenuSelectedIndex < itemCount - 1 {
-                submenuSelectedIndex += 1
-            } else {
-                submenuSelectedIndex = 0
-            }
-            return true
-        case 123: // Left - サブメニュー閉じる
-            closeSubmenu()
-            return true
-        case 36: // Enter
-            if isHistorySubmenu {
-                if submenuSelectedIndex < historySubmenuItems.count {
-                    pasteItem(historySubmenuItems[submenuSelectedIndex])
+
+        return PopupKeyboardHandler.handleSubmenu(
+            keyCode: keyCode,
+            selectedIndex: &submenuSelectedIndex,
+            itemCount: itemCount,
+            onClose: { closeSubmenu() },
+            onEnter: {
+                if isHistorySubmenu {
+                    if submenuSelectedIndex < historySubmenuItems.count {
+                        pasteItem(historySubmenuItems[submenuSelectedIndex])
+                    }
+                } else {
+                    if submenuSelectedIndex < submenuItems.count {
+                        pasteSnippet(submenuItems[submenuSelectedIndex])
+                    }
                 }
-            } else {
-                if submenuSelectedIndex < submenuItems.count {
-                    pasteSnippet(submenuItems[submenuSelectedIndex])
-                }
-            }
-            return true
-        default:
-            if keyCode >= 101 && keyCode <= 109 {
-                let num = Int(keyCode) - 100
+            },
+            onNumberKey: { num in
                 if isHistorySubmenu {
                     if num <= historySubmenuItems.count {
                         pasteItem(historySubmenuItems[num - 1])
@@ -304,10 +281,8 @@ struct MainPopupView: View {
                         pasteSnippet(submenuItems[num - 1])
                     }
                 }
-                return true
             }
-            return false
-        }
+        )
     }
     
     private func executeSelectedItem() {

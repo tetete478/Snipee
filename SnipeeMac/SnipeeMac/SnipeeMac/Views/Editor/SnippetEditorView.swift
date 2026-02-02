@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 
 struct SnippetEditorView: View {
@@ -29,7 +30,7 @@ struct SnippetEditorView: View {
     @State private var isViewingOtherDepartment = false
     @State private var saveRequestId: Int = 0
 
-    private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
+    private let theme: ColorTheme = .silver
     
     enum ImportExportTarget {
         case personal
@@ -74,6 +75,40 @@ struct SnippetEditorView: View {
                 onAdd: addSnippet,
                 onCancel: { isAddingSnippet = false }
             )
+        }
+        .background(KeyboardHandler(
+            onUpArrow: selectPreviousSnippet,
+            onDownArrow: selectNextSnippet
+        ))
+    }
+
+    // MARK: - Keyboard Navigation
+
+    private func selectPreviousSnippet() {
+        let folders = isShowingMaster ? masterFolders : personalFolders
+        guard let currentFolderId = selectedFolderId,
+              let folderIndex = folders.firstIndex(where: { $0.id == currentFolderId }) else { return }
+
+        let snippets = folders[folderIndex].snippets
+        guard let currentSnippetId = selectedSnippetId,
+              let currentIndex = snippets.firstIndex(where: { $0.id == currentSnippetId }) else { return }
+
+        if currentIndex > 0 {
+            selectedSnippetId = snippets[currentIndex - 1].id
+        }
+    }
+
+    private func selectNextSnippet() {
+        let folders = isShowingMaster ? masterFolders : personalFolders
+        guard let currentFolderId = selectedFolderId,
+              let folderIndex = folders.firstIndex(where: { $0.id == currentFolderId }) else { return }
+
+        let snippets = folders[folderIndex].snippets
+        guard let currentSnippetId = selectedSnippetId,
+              let currentIndex = snippets.firstIndex(where: { $0.id == currentSnippetId }) else { return }
+
+        if currentIndex < snippets.count - 1 {
+            selectedSnippetId = snippets[currentIndex + 1].id
         }
     }
     
@@ -128,7 +163,7 @@ struct SnippetEditorView: View {
             onAddSnippet: { if !isViewingOtherDepartment { isAddingSnippet = true } },
             saveRequestId: $saveRequestId
         )
-        .id("content-\(isViewingOtherDepartment)-\(selectedFolderId ?? "")")
+        .id("content-\(isViewingOtherDepartment)-\(isShowingMaster)")
         .frame(minWidth: 400)
     }
     
@@ -233,7 +268,7 @@ struct SnippetEditorView: View {
     private func loadData() {
         personalFolders = StorageService.shared.getPersonalSnippets()
         masterFolders = StorageService.shared.getMasterSnippets()
-        
+
         if let firstFolder = personalFolders.first {
             selectedFolderId = firstFolder.id
             if let firstSnippet = firstFolder.snippets.first {
@@ -538,7 +573,7 @@ struct SnippetEditorView: View {
         var addedFolders = 0
         var addedSnippets = 0
         var updatedSnippets = 0
-        
+
         for folder in importedFolders {
             if let existingIndex = personalFolders.firstIndex(where: { $0.name == folder.name }) {
                 for snippet in folder.snippets {
@@ -582,7 +617,7 @@ struct SnippetEditorView: View {
                 addedFolders += 1
             }
         }
-        
+
         saveData()
         alertMessage = "インポート完了\n追加: \(addedFolders)フォルダ, \(addedSnippets)スニペット\n更新: \(updatedSnippets)スニペット"
         showAlert = true
@@ -667,24 +702,65 @@ struct AddSnippetSheet: View {
     }
 }
 
-// MARK: - XML Document for Export
+// MARK: - Keyboard Handler
 
-struct SnippetXMLDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.xml] }
-    
-    var folders: [SnippetFolder]
-    
-    init(folders: [SnippetFolder]) {
-        self.folders = folders
+struct KeyboardHandler: NSViewRepresentable {
+    let onUpArrow: () -> Void
+    let onDownArrow: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = KeyboardMonitorView()
+        view.onUpArrow = onUpArrow
+        view.onDownArrow = onDownArrow
+        return view
     }
-    
-    init(configuration: ReadConfiguration) throws {
-        folders = []
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let view = nsView as? KeyboardMonitorView {
+            view.onUpArrow = onUpArrow
+            view.onDownArrow = onDownArrow
+        }
     }
-    
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        let xmlString = XMLParserHelper.export(folders: folders)
-        let data = xmlString.data(using: .utf8) ?? Data()
-        return FileWrapper(regularFileWithContents: data)
+}
+
+class KeyboardMonitorView: NSView {
+    var onUpArrow: (() -> Void)?
+    var onDownArrow: (() -> Void)?
+    private var monitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil && monitor == nil {
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                // Command+上下キーでスニペット切り替え
+                if event.modifierFlags.contains(.command) {
+                    switch event.keyCode {
+                    case 126: // Up
+                        self?.onUpArrow?()
+                        return nil
+                    case 125: // Down
+                        self?.onDownArrow?()
+                        return nil
+                    default:
+                        break
+                    }
+                }
+                return event
+            }
+        }
+    }
+
+    override func removeFromSuperview() {
+        if let monitor = monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+        super.removeFromSuperview()
+    }
+
+    deinit {
+        if let monitor = monitor {
+            NSEvent.removeMonitor(monitor)
+        }
     }
 }

@@ -14,8 +14,8 @@
             filePath = "SnipeeMac/Views/Popup/MainPopupView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "240"
-            endingLineNumber = "240"
+            startingLineNumber = "242"
+            endingLineNumber = "242"
             landmarkName = "handleMainMenuKeyDown(_:)"
             landmarkType = "7">
          </BreakpointContent>

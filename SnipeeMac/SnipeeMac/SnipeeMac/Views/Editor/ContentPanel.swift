@@ -23,6 +23,8 @@ struct ContentPanel: View {
     @State private var isEditingTitle = false
     @State private var saveState: SaveState = .none
     @State private var saveTask: Task<Void, Never>?
+    @State private var hasUnsavedChanges = false
+    @State private var isLoadingSnippet = false
     @FocusState private var isTitleFieldFocused: Bool
     
     enum SaveState {
@@ -68,32 +70,42 @@ struct ContentPanel: View {
             loadSnippet()
         }
         .onChange(of: selectedSnippetId) { oldValue, newValue in
-            // 切り替え前に即座に保存
-            if oldValue != nil {
+            // 切り替え前に変更があれば保存
+            if oldValue != nil && hasUnsavedChanges {
                 saveImmediately()
             }
             loadSnippet()
         }
         .onChange(of: selectedFolderId) { oldValue, newValue in
-            // フォルダ切り替え前に保存
-            if oldValue != nil {
+            // フォルダ切り替え前に変更があれば保存
+            if oldValue != nil && hasUnsavedChanges {
                 saveImmediately()
             }
         }
-        .onChange(of: folders.count) { _, _ in
+        .onChange(of: folders.count) { oldValue, newValue in
             loadSnippet()
         }
-        .onChange(of: editingContent) { _, _ in
-            autoSave()
+        .onChange(of: editingContent) { oldValue, newValue in
+            if oldValue != newValue && !isLoadingSnippet {
+                hasUnsavedChanges = true
+                autoSave()
+            }
         }
-        .onChange(of: editingDescription) { _, _ in
-            autoSave()
+        .onChange(of: editingDescription) { oldValue, newValue in
+            if oldValue != newValue && !isLoadingSnippet {
+                hasUnsavedChanges = true
+                autoSave()
+            }
         }
         .onDisappear {
-            saveImmediately()
+            if hasUnsavedChanges {
+                saveImmediately()
+            }
         }
         .onChange(of: saveRequestId) { _, _ in
-            saveImmediately()
+            if hasUnsavedChanges {
+                saveImmediately()
+            }
         }
     }
     
@@ -307,7 +319,9 @@ struct ContentPanel: View {
     // MARK: - Actions
     
     private func loadSnippet() {
+        isLoadingSnippet = true
         isEditingTitle = false
+        hasUnsavedChanges = false
         if let snippet = selectedSnippet {
             editingTitle = snippet.title
             editingContent = snippet.content
@@ -316,6 +330,9 @@ struct ContentPanel: View {
             editingTitle = ""
             editingContent = ""
             editingDescription = ""
+        }
+        DispatchQueue.main.async {
+            isLoadingSnippet = false
         }
     }
     
@@ -328,53 +345,73 @@ struct ContentPanel: View {
     }
     
     private func saveSnippet() {
-        guard !isReadOnly else { return }
+        guard !isReadOnly else {
+            return
+        }
         guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == selectedSnippetId }) else {
             return
         }
-        
+
         folders[folderIndex].snippets[snippetIndex].title = editingTitle
         folders[folderIndex].snippets[snippetIndex].content = editingContent
         folders[folderIndex].snippets[snippetIndex].description = editingDescription.isEmpty ? nil : editingDescription
+
+        hasUnsavedChanges = false
         onSave()
     }
     
     private func autoSave() {
-        guard !isReadOnly && isEditable else { return }
-        guard folders.firstIndex(where: { $0.id == selectedFolderId }) != nil else { return }
-        
+        guard !isReadOnly && isEditable else {
+            return
+        }
+        guard folders.firstIndex(where: { $0.id == selectedFolderId }) != nil else {
+            return
+        }
+
         // 既存のタスクをキャンセル
         saveTask?.cancel()
-        
+
+        // キャプチャ時点のIDと内容を記録
+        let capturedFolderId = selectedFolderId
+        let capturedSnippetId = selectedSnippetId
+        let capturedContent = editingContent
+        let capturedDescription = editingDescription
+
         // 0.5秒後に保存
         saveTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
-            
-            guard !Task.isCancelled else { return }
-            
+
+            guard !Task.isCancelled else {
+                return
+            }
+
             await MainActor.run {
                 saveState = .saving
             }
-            
+
             // 少し待ってから保存（UIに反映）
             try? await Task.sleep(nanoseconds: 200_000_000)
-            
-            guard !Task.isCancelled else { return }
-            
+
+            guard !Task.isCancelled else {
+                return
+            }
+
             await MainActor.run {
-                guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }),
-                      let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == selectedSnippetId }) else {
+                guard let folderIndex = folders.firstIndex(where: { $0.id == capturedFolderId }),
+                      let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == capturedSnippetId }) else {
                     saveState = .none
                     return
                 }
-                
-                folders[folderIndex].snippets[snippetIndex].content = editingContent
-                folders[folderIndex].snippets[snippetIndex].description = editingDescription.isEmpty ? nil : editingDescription
+
+                folders[folderIndex].snippets[snippetIndex].content = capturedContent
+                folders[folderIndex].snippets[snippetIndex].description = capturedDescription.isEmpty ? nil : capturedDescription
+
+                hasUnsavedChanges = false
                 onSave()
-                
+
                 saveState = .saved
-                
+
                 // 2秒後に非表示
                 Task {
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -392,15 +429,19 @@ struct ContentPanel: View {
         // 保留中のタスクをキャンセル
         saveTask?.cancel()
         saveState = .none
-        
-        guard !isReadOnly && isEditable else { return }
+
+        guard !isReadOnly && isEditable else {
+            return
+        }
         guard let folderIndex = folders.firstIndex(where: { $0.id == selectedFolderId }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == selectedSnippetId }) else {
             return
         }
-        
+
         folders[folderIndex].snippets[snippetIndex].content = editingContent
         folders[folderIndex].snippets[snippetIndex].description = editingDescription.isEmpty ? nil : editingDescription
+
+        hasUnsavedChanges = false
         onSave()
     }
 }

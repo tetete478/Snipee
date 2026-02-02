@@ -27,6 +27,7 @@ struct AppSettings: Codable {
     var pasteDelay: Int
     var lastSyncDate: Date?
     var onboardingCompleted: Bool
+    var hiddenFolders: [String]
     
     init() {
         self.userName = ""
@@ -39,5 +40,6 @@ struct AppSettings: Codable {
         self.pasteDelay = 50
         self.lastSyncDate = nil
         self.onboardingCompleted = false
+        self.hiddenFolders = []
     }
 }

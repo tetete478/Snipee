@@ -12,7 +12,7 @@ struct HistoryPopupView: View {
     @State private var submenuItems: [HistoryItem] = []
     @State private var submenuSelectedIndex: Int = 0
     
-    private let theme = ColorTheme(rawValue: StorageService.shared.getSettings().theme) ?? .silver
+    private let theme: ColorTheme = .silver
     
     private var pinnedItems: [HistoryItem] {
         clipboardService.history.filter { $0.isPinned }
@@ -216,7 +216,7 @@ struct HistoryPopupView: View {
     }
     
     // MARK: - Keyboard Handler
-    
+
     private func setupKeyboardHandler() {
         PopupWindowController.shared.onKeyDown = { [self] keyCode in
             if isSubmenuOpen {
@@ -226,77 +226,59 @@ struct HistoryPopupView: View {
             }
         }
     }
-    
+
     private func handleMainMenuKeyDown(_ keyCode: UInt16) -> Bool {
-        switch keyCode {
-        case 126: // Up
-            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: -1, count: totalSelectableCount)
-            return true
-        case 125: // Down
-            selectedIndex = NavigationHelper.loopIndex(selectedIndex, delta: 1, count: totalSelectableCount)
-            return true
-        case 124: // Right
-            let groupStartIndex = pinnedItems.count
-            let groupEndIndex = groupStartIndex + historyGroups.count
-            if selectedIndex >= groupStartIndex && selectedIndex < groupEndIndex {
-                openSubmenuForGroup(at: selectedIndex - groupStartIndex)
-            }
-            return true
-        case 36: // Enter
-            executeSelectedItem()
-            return true
-        case 35: // P key
-            togglePinForSelectedItem()
-            return true
-        default:
-            if keyCode >= 101 && keyCode <= 109 {
-                let num = Int(keyCode) - 100
+        PopupKeyboardHandler.handleMainMenu(
+            keyCode: keyCode,
+            selectedIndex: &selectedIndex,
+            totalCount: totalSelectableCount,
+            onRight: {
+                let groupStartIndex = pinnedItems.count
+                let groupEndIndex = groupStartIndex + historyGroups.count
+                if selectedIndex >= groupStartIndex && selectedIndex < groupEndIndex {
+                    openSubmenuForGroup(at: selectedIndex - groupStartIndex)
+                }
+            },
+            onEnter: { executeSelectedItem() },
+            onNumberKey: { num in
                 if num <= pinnedItems.count {
                     pasteItem(pinnedItems[num - 1])
                 }
-                return true
+            },
+            customHandler: { keyCode in
+                if keyCode == PopupKeyboardHandler.keyP {
+                    togglePinForSelectedItem()
+                    return true
+                }
+                return false
             }
-            return false
-        }
+        )
     }
-    
+
     private func handleSubmenuKeyDown(_ keyCode: UInt16) -> Bool {
-        switch keyCode {
-        case 126: // Up
-            if submenuSelectedIndex > 0 {
-                submenuSelectedIndex -= 1
-            } else {
-                submenuSelectedIndex = submenuItems.count - 1
-            }
-            return true
-        case 125: // Down
-            if submenuSelectedIndex < submenuItems.count - 1 {
-                submenuSelectedIndex += 1
-            } else {
-                submenuSelectedIndex = 0
-            }
-            return true
-        case 123: // Left
-            closeSubmenu()
-            return true
-        case 36: // Enter
-            if submenuSelectedIndex < submenuItems.count {
-                pasteItem(submenuItems[submenuSelectedIndex])
-            }
-            return true
-        case 35: // P key
-            togglePinForSubmenuItem()
-            return true
-        default:
-            if keyCode >= 101 && keyCode <= 109 {
-                let num = Int(keyCode) - 100
+        PopupKeyboardHandler.handleSubmenu(
+            keyCode: keyCode,
+            selectedIndex: &submenuSelectedIndex,
+            itemCount: submenuItems.count,
+            onClose: { closeSubmenu() },
+            onEnter: {
+                if submenuSelectedIndex < submenuItems.count {
+                    pasteItem(submenuItems[submenuSelectedIndex])
+                }
+            },
+            onNumberKey: { num in
                 if num <= submenuItems.count {
                     pasteItem(submenuItems[num - 1])
                 }
-                return true
+            },
+            customHandler: { keyCode in
+                if keyCode == PopupKeyboardHandler.keyP {
+                    togglePinForSubmenuItem()
+                    return true
+                }
+                return false
             }
-            return false
-        }
+        )
     }
     
     // MARK: - Actions
