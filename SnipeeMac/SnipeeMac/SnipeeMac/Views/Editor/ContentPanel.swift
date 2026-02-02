@@ -47,11 +47,11 @@ struct ContentPanel: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            editorToolbar
+            
+            Divider()
+            
             if selectedSnippet != nil {
-                editorToolbar
-                
-                Divider()
-                
                 titleSection
                 
                 Divider()
