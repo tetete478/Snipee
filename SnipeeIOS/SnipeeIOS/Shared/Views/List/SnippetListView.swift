@@ -6,18 +6,29 @@
 import SwiftUI
 
 struct SnippetListView: View {
-    @State private var folders: [SnippetFolder] = []
+    @EnvironmentObject var appState: AppState
     @State private var showToast = false
     @State private var toastMessage = ""
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(folders) { folder in
-                    Section(header: Text(folder.name)) {
-                        ForEach(folder.snippets) { snippet in
-                            SnippetRowView(snippet: snippet) {
-                                copySnippet(snippet)
+            Group {
+                if appState.isInitialLoading {
+                    // 初期ロード中（通常は表示されない）
+                    ProgressView("読み込み中...")
+                } else if appState.folders.isEmpty {
+                    // データなし
+                    EmptyStateView()
+                } else {
+                    // データあり
+                    List {
+                        ForEach(appState.folders) { folder in
+                            Section(header: Text(folder.name)) {
+                                ForEach(folder.snippets) { snippet in
+                                    SnippetRowView(snippet: snippet) {
+                                        copySnippet(snippet)
+                                    }
+                                }
                             }
                         }
                     }
@@ -25,7 +36,7 @@ struct SnippetListView: View {
             }
             .navigationTitle("スニペット")
             .refreshable {
-                await refreshData()
+                await appState.refresh()
             }
             .overlay(alignment: .bottom) {
                 if showToast {
@@ -34,18 +45,6 @@ struct SnippetListView: View {
                 }
             }
         }
-        .onAppear {
-            loadData()
-        }
-    }
-
-    private func loadData() {
-        folders = StorageService.shared.getSnippets()
-    }
-
-    private func refreshData() async {
-        await SyncService.shared.syncMasterSnippets()
-        loadData()
     }
 
     private func copySnippet(_ snippet: Snippet) {
@@ -64,6 +63,26 @@ struct SnippetListView: View {
                 showToast = false
             }
         }
+    }
+}
+
+// MARK: - Empty State View
+
+struct EmptyStateView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            Text("スニペットがありません")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Text("プルダウンで同期するか\n設定から接続してください")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -86,4 +105,5 @@ struct ToastView: View {
 
 #Preview {
     SnippetListView()
+        .environmentObject(AppState())
 }

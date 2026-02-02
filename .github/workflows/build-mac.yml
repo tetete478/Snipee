@@ -99,3 +99,30 @@ jobs:
           files: SnipeeMac/SnipeeMac/build/export/Snipee-Swift-${{ env.VERSION }}.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Appcast
+        run: |
+          PUBDATE=$(date -u +"%a, %d %b %Y %H:%M:%S +0000")
+          DMG_URL="https://github.com/tetete478/Snipee/releases/download/mac-v${VERSION}/Snipee-Swift-${VERSION}.dmg"
+          echo '<?xml version="1.0" encoding="utf-8"?>' > docs/appcast-mac.xml
+          echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">' >> docs/appcast-mac.xml
+          echo '  <channel>' >> docs/appcast-mac.xml
+          echo '    <title>Snipee Mac Updates</title>' >> docs/appcast-mac.xml
+          echo '    <item>' >> docs/appcast-mac.xml
+          echo "      <title>Version ${VERSION}</title>" >> docs/appcast-mac.xml
+          echo "      <pubDate>${PUBDATE}</pubDate>" >> docs/appcast-mac.xml
+          echo "      <sparkle:version>${VERSION}</sparkle:version>" >> docs/appcast-mac.xml
+          echo "      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>" >> docs/appcast-mac.xml
+          echo '      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>' >> docs/appcast-mac.xml
+          echo "      <enclosure url=\"${DMG_URL}\" type=\"application/octet-stream\" length=\"0\" />" >> docs/appcast-mac.xml
+          echo '    </item>' >> docs/appcast-mac.xml
+          echo '  </channel>' >> docs/appcast-mac.xml
+          echo '</rss>' >> docs/appcast-mac.xml
+
+      - name: Commit and Push Appcast
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/appcast-mac.xml
+          git commit -m "Update appcast for mac-v${VERSION}" || echo "No changes"
+          git push origin HEAD:main

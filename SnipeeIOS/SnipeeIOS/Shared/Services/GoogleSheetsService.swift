@@ -10,18 +10,31 @@ class GoogleSheetsService {
 
     private let baseUrl = "https://sheets.googleapis.com/v4/spreadsheets"
 
+    // Mac版と同じ設定値
+    let defaultSpreadsheetId = "1IIl0mE96JZwTj-M742DVmVgBLIH27iAzT0lzrpu7qbM"
+    let memberSheetName = "メンバーリスト"
+    let departmentSheetName = "部署設定"
+
     private init() {}
 
     func readSheet(spreadsheetId: String, range: String, completion: @escaping (Result<[[String]], Error>) -> Void) {
+        print("📱 [Sheets] readSheet() 開始: \(range)")
+
         guard let accessToken = SecurityService.shared.getAccessToken() else {
+            print("❌ [Sheets] アクセストークンなし")
             completion(.failure(SheetsError.notAuthenticated))
             return
         }
 
+        print("📱 [Sheets] アクセストークン: \(accessToken.prefix(20))...")
+
         let encodedRange = range.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let urlString = "\(baseUrl)/\(spreadsheetId)/values/\(encodedRange)"
 
+        print("📱 [Sheets] URL: \(urlString)")
+
         guard let url = URL(string: urlString) else {
+            print("❌ [Sheets] URL生成失敗")
             completion(.failure(SheetsError.invalidURL))
             return
         }
@@ -31,17 +44,45 @@ class GoogleSheetsService {
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                print("❌ [Sheets] ネットワークエラー: \(error.localizedDescription)")
                 DispatchQueue.main.async { completion(.failure(error)) }
                 return
             }
 
-            guard let data = data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let values = json["values"] as? [[String]] else {
+            // HTTPレスポンスコード確認
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📱 [Sheets] HTTPステータス: \(httpResponse.statusCode)")
+                if httpResponse.statusCode != 200 {
+                    if let data = data, let errorString = String(data: data, encoding: .utf8) {
+                        print("❌ [Sheets] エラーレスポンス: \(errorString.prefix(500))")
+                    }
+                }
+            }
+
+            guard let data = data else {
+                print("❌ [Sheets] データなし")
                 DispatchQueue.main.async { completion(.success([])) }
                 return
             }
 
+            // レスポンス内容をデバッグ出力
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📱 [Sheets] レスポンス: \(responseString.prefix(300))...")
+            }
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                print("❌ [Sheets] JSON解析失敗")
+                DispatchQueue.main.async { completion(.success([])) }
+                return
+            }
+
+            guard let values = json["values"] as? [[String]] else {
+                print("⚠️ [Sheets] 'values' キーなし（データが空の可能性）")
+                DispatchQueue.main.async { completion(.success([])) }
+                return
+            }
+
+            print("✅ [Sheets] 読み込み成功: \(values.count) 行")
             DispatchQueue.main.async { completion(.success(values)) }
         }.resume()
     }
@@ -159,8 +200,97 @@ class GoogleSheetsService {
     }
 }
 
-enum SheetsError: Error {
+enum SheetsError: Error, LocalizedError {
     case notAuthenticated
     case invalidURL
     case invalidResponse
+    case memberNotFound
+    case departmentNotFound
+    case noData
+
+    var errorDescription: String? {
+        switch self {
+        case .notAuthenticated: return "認証されていません"
+        case .invalidURL: return "無効なURLです"
+        case .invalidResponse: return "無効なレスポンスです"
+        case .memberNotFound: return "メンバーが見つかりません"
+        case .departmentNotFound: return "部署が見つかりません"
+        case .noData: return "データがありません"
+        }
+    }
+}
+
+// MARK: - Models
+
+struct SheetMemberInfo {
+    let name: String
+    let email: String
+    let department: String
+    let role: String
+}
+
+struct DepartmentInfo: Hashable {
+    let name: String
+    let fileId: String
+}
+
+// MARK: - Member/Department Methods
+
+extension GoogleSheetsService {
+    func fetchMemberInfo(email: String, completion: @escaping (Result<SheetMemberInfo, Error>) -> Void) {
+        readSheet(spreadsheetId: defaultSpreadsheetId, range: "\(memberSheetName)!A:D") { result in
+            switch result {
+            case .success(let values):
+                for row in values.dropFirst() {
+                    if row.count >= 4 && row[1].lowercased() == email.lowercased() {
+                        let member = SheetMemberInfo(
+                            name: row[0],
+                            email: row[1],
+                            department: row[2],
+                            role: row[3]
+                        )
+                        completion(.success(member))
+                        return
+                    }
+                }
+                completion(.failure(SheetsError.memberNotFound))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
+    func fetchDepartmentFileId(department: String, completion: @escaping (Result<String, Error>) -> Void) {
+        readSheet(spreadsheetId: defaultSpreadsheetId, range: "\(departmentSheetName)!A:B") { result in
+            switch result {
+            case .success(let values):
+                for row in values.dropFirst() {
+                    if row.count >= 2 && row[0] == department {
+                        completion(.success(row[1]))
+                        return
+                    }
+                }
+                completion(.failure(SheetsError.departmentNotFound))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
+    func fetchAllDepartments(completion: @escaping (Result<[DepartmentInfo], Error>) -> Void) {
+        readSheet(spreadsheetId: defaultSpreadsheetId, range: "\(departmentSheetName)!A:B") { result in
+            switch result {
+            case .success(let values):
+                var departments: [DepartmentInfo] = []
+                for row in values.dropFirst() {
+                    if row.count >= 2 {
+                        departments.append(DepartmentInfo(name: row[0], fileId: row[1]))
+                    }
+                }
+                completion(.success(departments))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
 }

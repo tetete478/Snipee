@@ -6,44 +6,54 @@
 import SwiftUI
 
 struct FolderListView: View {
-    @State private var folders: [SnippetFolder] = []
+    @EnvironmentObject var appState: AppState
+
+    private var masterFolders: [SnippetFolder] {
+        appState.folders.filter { folder in
+            folder.snippets.contains { $0.type == .master }
+        }
+    }
+
+    private var personalFolders: [SnippetFolder] {
+        appState.folders.filter { folder in
+            folder.snippets.contains { $0.type == .personal }
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("マスタ") {
-                    ForEach(folders.filter { $0.snippets.first?.type == .master }) { folder in
-                        NavigationLink(destination: FolderDetailView(folder: folder)) {
-                            FolderRowView(folder: folder, isMaster: true)
+            Group {
+                if appState.folders.isEmpty {
+                    EmptyStateView()
+                } else {
+                    List {
+                        if !masterFolders.isEmpty {
+                            Section("マスタ") {
+                                ForEach(masterFolders) { folder in
+                                    NavigationLink(destination: FolderDetailView(folder: folder)) {
+                                        FolderRowView(folder: folder, isMaster: true)
+                                    }
+                                }
+                            }
                         }
-                    }
-                }
 
-                Section("個別") {
-                    ForEach(folders.filter { $0.snippets.first?.type == .personal }) { folder in
-                        NavigationLink(destination: FolderDetailView(folder: folder)) {
-                            FolderRowView(folder: folder, isMaster: false)
+                        if !personalFolders.isEmpty {
+                            Section("個別") {
+                                ForEach(personalFolders) { folder in
+                                    NavigationLink(destination: FolderDetailView(folder: folder)) {
+                                        FolderRowView(folder: folder, isMaster: false)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("フォルダ")
             .refreshable {
-                await refreshData()
+                await appState.refresh()
             }
         }
-        .onAppear {
-            loadData()
-        }
-    }
-
-    private func loadData() {
-        folders = StorageService.shared.getSnippets()
-    }
-
-    private func refreshData() async {
-        await SyncService.shared.syncMasterSnippets()
-        loadData()
     }
 }
 
@@ -74,4 +84,5 @@ struct FolderRowView: View {
 
 #Preview {
     FolderListView()
+        .environmentObject(AppState())
 }

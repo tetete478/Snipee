@@ -10,9 +10,32 @@ struct AccountView: View {
     @State private var department: String = ""
     @State private var role: String = ""
     @State private var showLogoutAlert = false
+    @State private var isLoggedIn: Bool = false
+    @State private var isLoggingIn: Bool = false
+    @State private var isLoggingOut: Bool = false
 
     var body: some View {
         List {
+            if !isLoggedIn {
+                Section {
+                    Button(action: login) {
+                        HStack {
+                            Spacer()
+                            if isLoggingIn {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("ログイン中...")
+                            } else {
+                                Image(systemName: "person.circle")
+                                Text("Googleでログイン")
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(isLoggingIn)
+                }
+            }
+            
             Section("ログイン情報") {
                 HStack {
                     Text("メール")
@@ -62,14 +85,44 @@ struct AccountView: View {
     }
 
     private func loadAccountInfo() {
-        let info = SyncService.shared.getCachedMemberInfo()
-        email = GoogleAuthService.shared.currentUserEmail ?? ""
-        department = info.department ?? ""
-        role = info.role ?? ""
+        isLoggedIn = SecurityService.shared.isLoggedIn()
+        if isLoggedIn {
+            let info = SyncService.shared.getCachedMemberInfo()
+            email = GoogleAuthService.shared.currentUserEmail ?? ""
+            department = info.department ?? ""
+            role = info.role ?? ""
+        }
+    }
+    
+    private func login() {
+        isLoggingIn = true
+        Task {
+            do {
+                try await GoogleAuthService.shared.signIn()
+                await MainActor.run {
+                    isLoggingIn = false
+                    loadAccountInfo()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoggingIn = false
+                    print("Login error: \(error)")
+                }
+            }
+        }
     }
 
     private func logout() {
-        SecurityService.shared.logout()
+        isLoggingOut = true
+        Task {
+            await Task.detached {
+                SecurityService.shared.logout()
+            }.value
+            await MainActor.run {
+                isLoggingOut = false
+                loadAccountInfo()
+            }
+        }
     }
 }
 

@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject var appState: AppState
     @State private var userName: String = ""
     @State private var lastSyncDate: Date?
 
@@ -42,9 +43,15 @@ struct SettingsView: View {
                         HStack {
                             Text("今すぐ同期")
                             Spacer()
-                            Image(systemName: "arrow.triangle.2.circlepath")
+                            if appState.isSyncing {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
                         }
                     }
+                    .disabled(appState.isSyncing)
                 }
 
                 Section("情報") {
@@ -61,6 +68,11 @@ struct SettingsView: View {
         .onAppear {
             loadSettings()
         }
+        .onChange(of: appState.isSyncing) { _, newValue in
+            if !newValue {
+                loadSettings()
+            }
+        }
     }
 
     private func loadSettings() {
@@ -70,13 +82,14 @@ struct SettingsView: View {
     }
 
     private func syncNow() {
+        print("🔴🔴🔴 [Settings] 今すぐ同期ボタン押下 🔴🔴🔴")
         Task {
-            await SyncService.shared.syncMasterSnippets()
-            loadSettings()
+            await appState.refresh()
         }
     }
 }
 
 #Preview {
     SettingsView()
+        .environmentObject(AppState())
 }

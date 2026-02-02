@@ -6,10 +6,14 @@
 import SwiftUI
 
 struct SearchView: View {
+    @EnvironmentObject var appState: AppState
     @State private var searchText = ""
-    @State private var allSnippets: [Snippet] = []
     @State private var showToast = false
     @State private var toastMessage = ""
+
+    private var allSnippets: [Snippet] {
+        appState.folders.flatMap { $0.snippets }
+    }
 
     private var filteredSnippets: [Snippet] {
         if searchText.isEmpty {
@@ -41,17 +45,11 @@ struct SearchView: View {
             .overlay {
                 if filteredSnippets.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView.search(text: searchText)
+                } else if filteredSnippets.isEmpty && searchText.isEmpty {
+                    EmptyStateView()
                 }
             }
         }
-        .onAppear {
-            loadData()
-        }
-    }
-
-    private func loadData() {
-        let folders = StorageService.shared.getSnippets()
-        allSnippets = folders.flatMap { $0.snippets }
     }
 
     private func copySnippet(_ snippet: Snippet) {
@@ -75,4 +73,5 @@ struct SearchView: View {
 
 #Preview {
     SearchView()
+        .environmentObject(AppState())
 }

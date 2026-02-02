@@ -6,20 +6,84 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E54BAE442F2F905E00F41995 /* SnipeeiOSKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E54BAE3D2F2F905E00F41995 /* SnipeeiOSKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E54BAE422F2F905E00F41995 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E54BAD8C2F2F860800F41995 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E54BAE3C2F2F905E00F41995;
+			remoteInfo = SnipeeiOSKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E54BAE452F2F905E00F41995 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				E54BAE442F2F905E00F41995 /* SnipeeiOSKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		E54BAD942F2F860800F41995 /* SnipeeIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipeeIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E54BAE3D2F2F905E00F41995 /* SnipeeiOSKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnipeeiOSKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E54BADE82F2F87F500F41995 /* Exceptions for "SnipeeIOS" folder in "SnipeeIOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E54BAD932F2F860800F41995 /* SnipeeIOS */;
+		};
+		E54BAE492F2F905E00F41995 /* Exceptions for "SnipeeiOSKeyboard" folder in "SnipeeiOSKeyboard" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E54BAE3C2F2F905E00F41995 /* SnipeeiOSKeyboard */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E54BAD962F2F860800F41995 /* SnipeeIOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E54BADE82F2F87F500F41995 /* Exceptions for "SnipeeIOS" folder in "SnipeeIOS" target */,
+			);
 			path = SnipeeIOS;
+			sourceTree = "<group>";
+		};
+		E54BAE3E2F2F905E00F41995 /* SnipeeiOSKeyboard */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E54BAE492F2F905E00F41995 /* Exceptions for "SnipeeiOSKeyboard" folder in "SnipeeiOSKeyboard" target */,
+			);
+			path = SnipeeiOSKeyboard;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		E54BAD912F2F860800F41995 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E54BAE3A2F2F905E00F41995 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +97,7 @@
 			isa = PBXGroup;
 			children = (
 				E54BAD962F2F860800F41995 /* SnipeeIOS */,
+				E54BAE3E2F2F905E00F41995 /* SnipeeiOSKeyboard */,
 				E54BAD952F2F860800F41995 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				E54BAD942F2F860800F41995 /* SnipeeIOS.app */,
+				E54BAE3D2F2F905E00F41995 /* SnipeeiOSKeyboard.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -55,10 +121,12 @@
 				E54BAD902F2F860800F41995 /* Sources */,
 				E54BAD912F2F860800F41995 /* Frameworks */,
 				E54BAD922F2F860800F41995 /* Resources */,
+				E54BAE452F2F905E00F41995 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				E54BAE432F2F905E00F41995 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				E54BAD962F2F860800F41995 /* SnipeeIOS */,
@@ -69,6 +137,28 @@
 			productName = SnipeeIOS;
 			productReference = E54BAD942F2F860800F41995 /* SnipeeIOS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E54BAE3C2F2F905E00F41995 /* SnipeeiOSKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E54BAE482F2F905E00F41995 /* Build configuration list for PBXNativeTarget "SnipeeiOSKeyboard" */;
+			buildPhases = (
+				E54BAE392F2F905E00F41995 /* Sources */,
+				E54BAE3A2F2F905E00F41995 /* Frameworks */,
+				E54BAE3B2F2F905E00F41995 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E54BAE3E2F2F905E00F41995 /* SnipeeiOSKeyboard */,
+			);
+			name = SnipeeiOSKeyboard;
+			packageProductDependencies = (
+			);
+			productName = SnipeeiOSKeyboard;
+			productReference = E54BAE3D2F2F905E00F41995 /* SnipeeiOSKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -81,6 +171,9 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					E54BAD932F2F860800F41995 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					E54BAE3C2F2F905E00F41995 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -100,12 +193,20 @@
 			projectRoot = "";
 			targets = (
 				E54BAD932F2F860800F41995 /* SnipeeIOS */,
+				E54BAE3C2F2F905E00F41995 /* SnipeeiOSKeyboard */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		E54BAD922F2F860800F41995 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E54BAE3B2F2F905E00F41995 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +223,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E54BAE392F2F905E00F41995 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E54BAE432F2F905E00F41995 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E54BAE3C2F2F905E00F41995 /* SnipeeiOSKeyboard */;
+			targetProxy = E54BAE422F2F905E00F41995 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		E54BAD9D2F2F860900F41995 /* Debug */ = {
@@ -251,11 +367,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SnipeeIOS/SnipeeIOS.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F8KR53ZN3Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnipeeIOS/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -266,7 +384,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.addness.SnipeeIOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.addness.snipee;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -283,11 +401,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SnipeeIOS/SnipeeIOS.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F8KR53ZN3Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnipeeIOS/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -298,11 +418,69 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.addness.SnipeeIOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.addness.snipee;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E54BAE462F2F905E00F41995 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SnipeeiOSKeyboard/SnipeeiOSKeyboard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F8KR53ZN3Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnipeeiOSKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SnipeeiOSKeyboard;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.addness.snipee.ioskeyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E54BAE472F2F905E00F41995 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SnipeeiOSKeyboard/SnipeeiOSKeyboard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F8KR53ZN3Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnipeeiOSKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SnipeeiOSKeyboard;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.addness.snipee.ioskeyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -327,6 +505,15 @@
 			buildConfigurations = (
 				E54BADA02F2F860900F41995 /* Debug */,
 				E54BADA12F2F860900F41995 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E54BAE482F2F905E00F41995 /* Build configuration list for PBXNativeTarget "SnipeeiOSKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E54BAE462F2F905E00F41995 /* Debug */,
+				E54BAE472F2F905E00F41995 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
