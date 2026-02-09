@@ -118,7 +118,7 @@ class GoogleSheetsService {
                 let sheetData = try JSONDecoder().decode(SheetResponse.self, from: data)
                 
                 guard let values = sheetData.values else {
-                    DispatchQueue.main.async { completion(.failure(SheetsError.departmentNotFound)) }
+                    DispatchQueue.main.async { completion(.failure(SheetsError.detailedDepartmentNotFound(searched: department, available: []))) }
                     return
                 }
                 
@@ -130,7 +130,8 @@ class GoogleSheetsService {
                     }
                 }
                 
-                DispatchQueue.main.async { completion(.failure(SheetsError.departmentNotFound)) }
+                let allDepts = values.dropFirst().compactMap { $0.first }
+                DispatchQueue.main.async { completion(.failure(SheetsError.detailedDepartmentNotFound(searched: department, available: allDepts))) }
             } catch {
                 DispatchQueue.main.async { completion(.failure(error)) }
             }
@@ -286,6 +287,7 @@ enum SheetsError: Error, LocalizedError {
     case noData
     case memberNotFound
     case departmentNotFound
+    case detailedDepartmentNotFound(searched: String, available: [String])
     
     var errorDescription: String? {
         switch self {
@@ -293,6 +295,8 @@ enum SheetsError: Error, LocalizedError {
         case .noData: return "データがありません"
         case .memberNotFound: return "メンバーが見つかりません"
         case .departmentNotFound: return "部署が見つかりません"
+        case .detailedDepartmentNotFound(let searched, let available):
+            return "部署「\(searched)」が見つかりません。\n登録済み部署: \(available.joined(separator: ", "))"
         }
     }
 }

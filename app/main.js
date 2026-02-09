@@ -20,10 +20,17 @@ app.on('second-instance', () => {
   // クリップボードウィンドウを表示
 });
 
-const googleAuth = require('./common/google-auth');
-const sheetsApi = require('./common/sheets-api');
-const driveApi = require('./common/drive-api');
-const memberManager = require('./common/member-manager');
+const appState = require('./app-state');
+const googleAuth = require('./services/google-auth-service');
+const sheetsApi = require('./services/google-sheets-service');
+const driveApi = require('./services/google-drive-service');
+const memberManager = require('./services/member-manager');
+const variableService = require('./services/variable-service');
+const pasteService = require('./services/paste-service');
+const syncService = require('./services/sync-service');
+const userReportService = require('./services/user-report-service');
+const snippetImportExportService = require('./services/snippet-import-export-service');
+const snippetPromotionService = require('./services/snippet-promotion-service');
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
@@ -33,70 +40,25 @@ const fs = require('fs');
 const axios = require('axios');
 const xml2js = require('xml2js');
 let autoUpdater = null;
-// try {
-//   autoUpdater = require('electron-updater').autoUpdater;
-//   console.log('6f. autoUpdater OK');
-// } catch (error) {
-//   console.log('6f. autoUpdater エラー:', error.message);
-// }
+try {
+  autoUpdater = require('electron-updater').autoUpdater;
+  console.log('autoUpdater 読み込み成功');
+} catch (error) {
+  console.error('autoUpdater 読み込み失敗:', error.message);
+}
 
 // Windows自動ペースト用
 const { exec, execSync } = require('child_process');
 
-// koffi（Windows用 - 高速なWindows API呼び出し）
-let user32 = null;
-let GetForegroundWindow = null;
-let SetForegroundWindow = null;
-let keybd_event = null;
-
-if (process.platform === 'win32') {
-  try {
-    const koffi = require('koffi');
-    user32 = koffi.load('user32.dll');
-    GetForegroundWindow = user32.func('GetForegroundWindow', 'void*', []);
-    SetForegroundWindow = user32.func('SetForegroundWindow', 'bool', ['void*']);
-    keybd_event = user32.func('keybd_event', 'void', ['uint8', 'uint8', 'uint32', 'void*']);
-  } catch (error) {
-    // koffi読み込み失敗時は自動ペースト無効
-  }
-}
-
-// キー定数（Windows用）
-const VK_CONTROL = 0x11;
-const VK_V = 0x56;
-const VK_MENU = 0x12; // Alt
-const KEYEVENTF_KEYUP = 0x0002;
-
 // ストアの初期化
-const store = new Store();
-
-// 個別スニペット専用ストア（別ファイルに保存 - アンインストールで消えない）
-const personalStore = new Store({ name: 'personal-snippets' });
+const { store, personalStore } = require('./services/storage-service');
 
 // デフォルトホットキー設定
 const DEFAULT_CLIPBOARD_SHORTCUT = 'Ctrl+Alt+C';
 const DEFAULT_SNIPPET_SHORTCUT = 'Ctrl+Alt+V';
 const DEFAULT_HISTORY_SHORTCUT = 'Ctrl+Alt+X';
 
-let mainWindow;
-let clipboardWindow;
-let snippetWindow;
-let historyWindow;
 let tray = null;
-let snippetEditorWindow = null;
-let welcomeWindow = null;
-let previousActiveApp = null;  // 元のアクティブアプリを記憶
-
-// 元のアクティブアプリを記憶
-function captureActiveApp() {
-  try {
-    if (GetForegroundWindow) {
-      previousActiveApp = GetForegroundWindow();
-    }
-  } catch (error) {
-    // HWND取得失敗時はスキップ
-  }
-}
 
 // アクセシビリティ権限チェック
 function hasAccessibilityPermission() {
@@ -104,13 +66,15 @@ function hasAccessibilityPermission() {
 }
 
 // クリップボード履歴管理
-let clipboardHistory = [];
-let pinnedItems = store.get('pinnedItems', []);
-let lastClipboardText = '';
-const MAX_HISTORY = 100;
+appState.clipboard.pinnedItems = store.get('pinnedItems', []);
+const DEFAULT_MAX_HISTORY = 100;
+
+function getMaxHistory() {
+  return store.get('historyMaxCount', DEFAULT_MAX_HISTORY);
+}
 
 function createMainWindow() {
-  mainWindow = new BrowserWindow({
+  appState.windows.main = new BrowserWindow({
     width: 500,
     height: 400,
     show: false,
@@ -122,12 +86,12 @@ function createMainWindow() {
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'settings.html'));
+  appState.windows.main.loadFile(path.join(__dirname, 'views/settings.html'));
 
-  mainWindow.on('close', (event) => {
+  appState.windows.main.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
-      mainWindow.hide();
+      appState.windows.main.hide();
     }
   });
 }
@@ -170,7 +134,7 @@ function createGenericWindow(type) {
     }
   });
 
-  window.loadFile(path.join(__dirname, htmlFile));
+  window.loadFile(path.join(__dirname, 'views', htmlFile));
 
   window.on('moved', () => {
     if (window && !window.isDestroyed()) {
@@ -191,27 +155,27 @@ function createGenericWindow(type) {
 
 // ラッパー関数
 function createClipboardWindow() {
-  clipboardWindow = createGenericWindow('clipboard');
+  appState.windows.clipboard = createGenericWindow('clipboard');
 }
 
 function createSnippetWindow() {
-  snippetWindow = createGenericWindow('snippet');
+  appState.windows.snippet = createGenericWindow('snippet');
 }
 
 function createHistoryWindow() {
-  historyWindow = createGenericWindow('history');
+  appState.windows.history = createGenericWindow('history');
 }
 
 // スニペット編集ウィンドウ作成
 function createSnippetEditorWindow() {
   // 既存のウィンドウがあれば再利用
-  if (snippetEditorWindow && !snippetEditorWindow.isDestroyed()) {
-    snippetEditorWindow.show();
-    snippetEditorWindow.focus();
+  if (appState.windows.snippetEditor && !appState.windows.snippetEditor.isDestroyed()) {
+    appState.windows.snippetEditor.show();
+    appState.windows.snippetEditor.focus();
     return;
   }
 
-  snippetEditorWindow = new BrowserWindow({
+  appState.windows.snippetEditor = new BrowserWindow({
     width: 720,
     height: 600,
     frame: true,
@@ -223,20 +187,20 @@ function createSnippetEditorWindow() {
     }
   });
 
-  snippetEditorWindow.loadFile(path.join(__dirname, 'snippet-editor.html'));
+  appState.windows.snippetEditor.loadFile(path.join(__dirname, 'views/snippet-editor.html'));
 
-  snippetEditorWindow.once('ready-to-show', () => {
-    snippetEditorWindow.show();
+  appState.windows.snippetEditor.once('ready-to-show', () => {
+    appState.windows.snippetEditor.show();
   });
 
-  snippetEditorWindow.on('closed', () => {
-    snippetEditorWindow = null;
+  appState.windows.snippetEditor.on('closed', () => {
+    appState.windows.snippetEditor = null;
   });
 }
 
 // ウェルカムウィンドウ作成
 function createWelcomeWindow() {
-  welcomeWindow = new BrowserWindow({
+  appState.windows.welcome = new BrowserWindow({
     width: 480,
     height: 520,
     show: false,
@@ -249,21 +213,19 @@ function createWelcomeWindow() {
     }
   });
 
-  welcomeWindow.loadFile(path.join(__dirname, 'welcome.html'));
+  appState.windows.welcome.loadFile(path.join(__dirname, 'views/welcome.html'));
 
-  welcomeWindow.once('ready-to-show', () => {
-    welcomeWindow.show();
+  appState.windows.welcome.once('ready-to-show', () => {
+    appState.windows.welcome.show();
   });
 
-  welcomeWindow.on('closed', () => {
-    welcomeWindow = null;
+  appState.windows.welcome.on('closed', () => {
+    appState.windows.welcome = null;
   });
 }
 
-let loginWindow = null;
-
 function createLoginWindow() {
-  loginWindow = new BrowserWindow({
+  appState.windows.login = new BrowserWindow({
     width: 450,
     height: 500,
     resizable: false,
@@ -273,10 +235,10 @@ function createLoginWindow() {
     }
   });
 
-  loginWindow.loadFile(path.join(__dirname, 'login.html'));
+  appState.windows.login.loadFile(path.join(__dirname, 'views/login.html'));
   
-  loginWindow.on('closed', () => {
-    loginWindow = null;
+  appState.windows.login.on('closed', () => {
+    appState.windows.login = null;
   });
 }
 
@@ -293,6 +255,14 @@ function createNotRegisteredWindow(email) {
 
 async function checkLoginAndStart() {
   try {
+    const SCOPE_VERSION = 3;
+    const savedScopeVersion = store.get('scopeVersion', 0);
+    if (savedScopeVersion < SCOPE_VERSION) {
+      console.log(`スコープバージョン更新検出: ${savedScopeVersion} → ${SCOPE_VERSION}`);
+      await googleAuth.logout();
+      store.set('scopeVersion', SCOPE_VERSION);
+    }
+
     const loggedIn = await googleAuth.isLoggedIn();
     
     if (!loggedIn) {
@@ -313,93 +283,12 @@ async function checkLoginAndStart() {
   }
 }
 
-async function loadDepartmentSnippets() {
-  try {
-    const xmlDataArray = await memberManager.getAllAccessibleXml();
-    console.log('loadDepartmentSnippets: 取得した部署XML数 =', xmlDataArray.length);
-    
-    if (xmlDataArray.length === 0) {
-      console.log('loadDepartmentSnippets: 部署XMLがありません');
-      return;
-    }
-    
-    // 全部署のスニペットを統合
-    const allSnippets = [];
-    
-    for (const { department, xml } of xmlDataArray) {
-      console.log(`loadDepartmentSnippets: ${department} のXMLをパース中...`);
-      
-      const parser = new xml2js.Parser({ 
-        explicitArray: false,
-        strict: false,
-        trim: true,
-        normalize: false,
-        normalizeTags: true,
-        attrkey: '$',
-        charkey: '_',
-        explicitCharkey: false,
-        mergeAttrs: false
-      });
-      
-      try {
-        const result = await parser.parseStringPromise(xml);
-        const foldersData = result.folders || result.FOLDERS;
-        
-        if (foldersData && (foldersData.folder || foldersData.FOLDER)) {
-          const folderArray = Array.isArray(foldersData.folder || foldersData.FOLDER) 
-            ? (foldersData.folder || foldersData.FOLDER)
-            : [foldersData.folder || foldersData.FOLDER];
-          
-          folderArray.forEach(folder => {
-            const folderName = folder.title || 'Uncategorized';
-            
-            const snippetArray = folder.snippets && folder.snippets.snippet
-              ? (Array.isArray(folder.snippets.snippet) 
-                  ? folder.snippets.snippet 
-                  : [folder.snippets.snippet])
-              : [];
-            
-            snippetArray.forEach(snippet => {
-              const title = snippet.title || '';
-              const content = snippet.content || '';
-              const description = snippet.description || '';
-              const id = snippet.id || generateSnippetId(folderName, title, content);
-              
-              allSnippets.push({
-                id,
-                title,
-                content,
-                description,
-                folder: folderName,
-                department: department
-              });
-            });
-          });
-        }
-      } catch (parseError) {
-        console.error(`loadDepartmentSnippets: ${department} のパースエラー`, parseError.message);
-      }
-    }
-    
-    console.log('loadDepartmentSnippets: 統合スニペット数 =', allSnippets.length);
-    
-    // 保存
-    const xmlFolders = [...new Set(allSnippets.map(s => s.folder))];
-    store.set('masterFolders', xmlFolders);
-    store.set('masterSnippets', { snippets: allSnippets });
-    store.set('lastSync', new Date().toISOString());
-    
-  } catch (error) {
-    console.error('loadDepartmentSnippets: エラー', error);
-  }
-}
-
 function startApp() {
   createMainWindow();
   createTray();
   
   // 部署XMLを読み込み
-  loadDepartmentSnippets();
+  syncService.loadDepartmentSnippets();
 
   if (!store.get('welcomeCompleted', false)) {
     createWelcomeWindow();
@@ -427,11 +316,13 @@ function startApp() {
   startClipboardMonitoring();
 
   // 2時間ごとに部署スニペットを自動同期
-  setInterval(async () => {
-    console.log('部署スニペット自動同期開始...');
-    await loadDepartmentSnippets();
-    console.log('部署スニペット自動同期完了');
-  }, 2 * 60 * 60 * 1000);
+  syncService.startAutoSync();
+
+  // 日次自動アップデートチェック開始
+  scheduleDailyUpdateCheck();
+
+  // ユーザーステータス報告
+  userReportService.report();
 }
 
 // グローバルショートカット登録(リトライ機能付き)
@@ -460,18 +351,18 @@ function registerGlobalShortcuts() {
   };
 
   registerWithRetry(mainHotkey, () => {
-    captureActiveApp();
+    pasteService.captureActiveApp();
     showClipboardWindow();
   });
 
   registerWithRetry(snippetHotkey, () => {
-    captureActiveApp();
+    pasteService.captureActiveApp();
     showSnippetWindow();
   });
 
   const historyHotkey = store.get('customHotkeyHistory', DEFAULT_HISTORY_SHORTCUT);
   registerWithRetry(historyHotkey, () => {
-    captureActiveApp();
+    pasteService.captureActiveApp();
     showHistoryWindow();
   });
 }
@@ -495,9 +386,9 @@ function createTray() {
     { 
       label: '設定', 
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
+        if (appState.windows.main) {
+          appState.windows.main.show();
+          appState.windows.main.focus();
         }
       }
     },
@@ -521,14 +412,14 @@ function createTray() {
 
 // クリップボード監視
 function startClipboardMonitoring() {
-  lastClipboardText = clipboard.readText();
-  clipboardHistory = store.get('clipboardHistory', []);
+  appState.clipboard.lastText = clipboard.readText();
+  appState.clipboard.history = store.get('clipboardHistory', []);
 
   setInterval(() => {
     const currentText = clipboard.readText();
     
-    if (currentText && currentText !== lastClipboardText) {
-      lastClipboardText = currentText;
+    if (currentText && currentText !== appState.clipboard.lastText) {
+      appState.clipboard.lastText = currentText;
       addToClipboardHistory(currentText);
     }
   }, 500);
@@ -536,55 +427,50 @@ function startClipboardMonitoring() {
 
 // クリップボード履歴に追加
 function addToClipboardHistory(text) {
-  clipboardHistory = clipboardHistory.filter(item => item.content !== text);
+  appState.clipboard.history = appState.clipboard.history.filter(item => item.content !== text);
 
-  clipboardHistory.unshift({
+  appState.clipboard.history.unshift({
     id: Date.now().toString(),
     content: text,
     timestamp: new Date().toISOString(),
     type: 'history'
   });
 
-  if (clipboardHistory.length > MAX_HISTORY) {
-    clipboardHistory = clipboardHistory.slice(0, MAX_HISTORY);
+  const maxHistory = getMaxHistory();
+  if (appState.clipboard.history.length > maxHistory) {
+    appState.clipboard.history = appState.clipboard.history.slice(0, maxHistory);
   }
 
-  store.set('clipboardHistory', clipboardHistory);
+  store.set('clipboardHistory', appState.clipboard.history);
 
-  if (clipboardWindow && !clipboardWindow.isDestroyed()) {
-    clipboardWindow.webContents.send('clipboard-updated');
+  if (appState.windows.clipboard && !appState.windows.clipboard.isDestroyed()) {
+    appState.windows.clipboard.webContents.send('clipboard-updated');
   }
 }
 
 // 汎用ウィンドウ表示関数
 function showGenericWindow(type) {
-  const windowMap = {
-    clipboard: { window: clipboardWindow, create: createClipboardWindow },
-    snippet: { window: snippetWindow, create: createSnippetWindow },
-    history: { window: historyWindow, create: createHistoryWindow }
+  const createMap = {
+    clipboard: createClipboardWindow,
+    snippet: createSnippetWindow,
+    history: createHistoryWindow
   };
 
-  const { window, create } = windowMap[type];
-  let currentWindow = type === 'clipboard' ? clipboardWindow : 
-                      type === 'snippet' ? snippetWindow : historyWindow;
-
   // 他のウィンドウを閉じる
-  const allWindows = [
-    { win: clipboardWindow, type: 'clipboard' },
-    { win: snippetWindow, type: 'snippet' },
-    { win: historyWindow, type: 'history' }
-  ];
-  
-  allWindows.forEach(({ win, type: winType }) => {
-    if (winType !== type && win && !win.isDestroyed() && win.isVisible()) {
-      win.hide();
+  ['clipboard', 'snippet', 'history'].forEach(winType => {
+    if (winType !== type) {
+      const win = appState.windows[winType];
+      if (win && !win.isDestroyed() && win.isVisible()) {
+        win.hide();
+      }
     }
   });
 
+  let currentWindow = appState.windows[type];
+
   if (!currentWindow || currentWindow.isDestroyed()) {
-    create();
-    currentWindow = type === 'clipboard' ? clipboardWindow : 
-                    type === 'snippet' ? snippetWindow : historyWindow;
+    createMap[type]();
+    currentWindow = appState.windows[type];
   }
 
   if (currentWindow.isVisible()) {
@@ -649,160 +535,22 @@ function positionAndShowWindow(type, window) {
   window.focus();
 }
 
-// Google Driveから共有スニペットを取得
-async function fetchMasterSnippets() {
-  const url = store.get('masterSnippetUrl', 'https://drive.google.com/file/d/1MIHYx_GUjfqv591h6rzIbcxm_FQZwAXY/view?usp=sharing');
-  if (!url) return { error: 'URLが設定されていません' };
-
-  try {
-    const fileId = extractFileIdFromUrl(url);
-    const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
-    
-    const response = await axios.get(downloadUrl, { responseType: 'text' });
-    const xmlData = response.data;
-
-    // HTMLエラーページが返ってきた場合を検出(大文字小文字両対応)
-    const lowerData = xmlData.toLowerCase();
-    if (lowerData.includes('<!doctype html>') || lowerData.includes('<html')) {
-      return { error: 'アクセスが制限されています。Google Driveの共有設定で「リンクを知っている全員」に変更してください。' };
-    }
-
-    // XMLとして有効かチェック
-    if (!xmlData.includes('<folders>') && !xmlData.includes('<FOLDERS>')) {
-      return { error: 'XMLファイルの形式が正しくありません。Clipyのエクスポート形式を確認してください。' };
-    }
-
-    // XMLをパース
-    const parser = new xml2js.Parser({ 
-      explicitArray: false,
-      strict: false,
-      trim: true,
-      normalize: false,
-      normalizeTags: true,
-      attrkey: '$',
-      charkey: '_',
-      explicitCharkey: false,
-      mergeAttrs: false
-    });
-    const result = await parser.parseStringPromise(xmlData);
-
-    // Clipy形式のXMLをSnipee内部形式に変換
-    const snippets = [];
-    
-    const foldersData = result.folders || result.FOLDERS;
-    if (foldersData && (foldersData.folder || foldersData.FOLDER)) {
-      const folderArray = Array.isArray(foldersData.folder || foldersData.FOLDER) 
-        ? (foldersData.folder || foldersData.FOLDER)
-        : [foldersData.folder || foldersData.FOLDER];
-      
-      folderArray.forEach(folder => {
-        const folderName = folder.title || 'Uncategorized';
-        
-        const snippetArray = folder.snippets && folder.snippets.snippet
-          ? (Array.isArray(folder.snippets.snippet) 
-              ? folder.snippets.snippet 
-              : [folder.snippets.snippet])
-          : [];
-        
-        snippetArray.forEach(snippet => {
-          const title = snippet.title || '';
-          const content = snippet.content || '';
-          const description = snippet.description || '';
-          
-          const id = snippet.id || generateSnippetId(folderName, title, content);
-          
-          snippets.push({
-            id,
-            title,
-            content,
-            description,
-            folder: folderName
-          });
-        });
-      });
-    }
-
-    return { snippets };
-  } catch (error) {
-    return { error: `同期エラー: ${error.message}` };
-  }
-}
-
-function extractFileIdFromUrl(url) {
-  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  return match ? match[1] : url;
-}
-
-// スニペット同期
-async function syncSnippets() {
-  const result = await fetchMasterSnippets();
-  
-  // エラーチェック
-  if (!result || result.error) {
-    return { success: false, error: result?.error || '同期に失敗しました' };
-  }
-
-  // snippetsが存在するかチェック
-  if (!result.snippets || !Array.isArray(result.snippets)) {
-    return { success: false, error: 'スニペットデータが無効です' };
-  }
-
-  const xmlSnippets = result.snippets;
-  
-  // 既存のマスタスニペット取得
-  const existingMaster = store.get('masterSnippets', { snippets: [] });
-  let masterSnippets = existingMaster.snippets || [];
-  
-  // XMLに存在するスニペットのID一覧
-  const xmlIds = xmlSnippets.map(s => s.id);
-  
-  // 同期処理
-  xmlSnippets.forEach(xmlSnip => {
-    const existing = masterSnippets.find(s => s.id === xmlSnip.id);
-    
-    if (existing) {
-      existing.title = xmlSnip.title;
-      existing.folder = xmlSnip.folder;
-      existing.content = xmlSnip.content;
-      
-      if (!existing.description) {
-        existing.description = xmlSnip.description;
-      }
-    } else {
-      masterSnippets.push(xmlSnip);
-    }
-  });
-  
-  // XMLに存在しないマスタスニペットを削除
-  masterSnippets = masterSnippets.filter(s => xmlIds.includes(s.id));
-  
-  // XMLに存在するフォルダ一覧でmasterFoldersも更新
-  const xmlFolders = [...new Set(xmlSnippets.map(s => s.folder))];
-  store.set('masterFolders', xmlFolders);
-  
-  // 保存
-  store.set('masterSnippets', { snippets: masterSnippets });
-  store.set('lastSync', new Date().toISOString());
-  
-  return { success: true };
-}
-
 // アプリ起動
 app.whenReady().then(() => {
   ipcMain.on('window-ready', (event) => {
     const sender = event.sender;
     
-    if (clipboardWindow && !clipboardWindow.isDestroyed() && sender === clipboardWindow.webContents) {
-      if (!clipboardWindow.isVisible()) {
-        clipboardWindow.show();
+    if (appState.windows.clipboard && !appState.windows.clipboard.isDestroyed() && sender === appState.windows.clipboard.webContents) {
+      if (!appState.windows.clipboard.isVisible()) {
+        appState.windows.clipboard.show();
       }
-    } else if (snippetWindow && !snippetWindow.isDestroyed() && sender === snippetWindow.webContents) {
-      if (!snippetWindow.isVisible()) {
-        snippetWindow.show();
+    } else if (appState.windows.snippet && !appState.windows.snippet.isDestroyed() && sender === appState.windows.snippet.webContents) {
+      if (!appState.windows.snippet.isVisible()) {
+        appState.windows.snippet.show();
       }
-    } else if (historyWindow && !historyWindow.isDestroyed() && sender === historyWindow.webContents) {
-      if (!historyWindow.isVisible()) {
-        historyWindow.show();
+    } else if (appState.windows.history && !appState.windows.history.isDestroyed() && sender === appState.windows.history.webContents) {
+      if (!appState.windows.history.isVisible()) {
+        appState.windows.history.show();
       }
     }
   });
@@ -824,7 +572,7 @@ ipcMain.handle('get-all-items', () => {
   const personalSnippets = personalStore.get('snippets', []);
   
   return {
-    history: clipboardHistory,
+    history: appState.clipboard.history,
     personalSnippets: personalSnippets,
     masterSnippets: masterSnippets.snippets || [],
     lastSync: store.get('lastSync', null),
@@ -846,6 +594,8 @@ ipcMain.handle('get-current-hotkey', (event, type) => {
     return store.get('customHotkeyMain', DEFAULT_CLIPBOARD_SHORTCUT);
   } else if (type === 'snippet') {
     return store.get('customHotkeySnippet', DEFAULT_SNIPPET_SHORTCUT);
+  } else if (type === 'history') {
+    return store.get('customHotkeyHistory', DEFAULT_HISTORY_SHORTCUT);
   }
   return DEFAULT_CLIPBOARD_SHORTCUT;
 });
@@ -856,6 +606,8 @@ ipcMain.handle('set-hotkey', (event, type, accelerator) => {
       store.set('customHotkeyMain', accelerator);
     } else if (type === 'snippet') {
       store.set('customHotkeySnippet', accelerator);
+    } else if (type === 'history') {
+      store.set('customHotkeyHistory', accelerator);
     }
     
     registerGlobalShortcuts();
@@ -869,6 +621,7 @@ ipcMain.handle('set-hotkey', (event, type, accelerator) => {
 ipcMain.handle('reset-all-hotkeys', () => {
   store.delete('customHotkeyMain');
   store.delete('customHotkeySnippet');
+  store.delete('customHotkeyHistory');
   registerGlobalShortcuts();
   return true;
 });
@@ -907,48 +660,48 @@ ipcMain.handle('delete-master-snippet', (event, snippetId) => {
 });
 
 ipcMain.handle('delete-history-item', (event, itemId) => {
-  clipboardHistory = clipboardHistory.filter(item => item.id !== itemId);
-  store.set('clipboardHistory', clipboardHistory);
+  appState.clipboard.history = appState.clipboard.history.filter(item => item.id !== itemId);
+  store.set('clipboardHistory', appState.clipboard.history);
   return true;
 });
 
 ipcMain.handle('clear-all-history', () => {
-  clipboardHistory = [];
+  appState.clipboard.history = [];
   store.set('clipboardHistory', []);
   return true;
 });
 
 ipcMain.handle('toggle-pin-item', (event, itemId) => {
-  const index = pinnedItems.indexOf(itemId);
+  const index = appState.clipboard.pinnedItems.indexOf(itemId);
   
   if (index > -1) {
-    pinnedItems.splice(index, 1);
+    appState.clipboard.pinnedItems.splice(index, 1);
   } else {
-    pinnedItems.push(itemId);
+    appState.clipboard.pinnedItems.push(itemId);
   }
   
-  store.set('pinnedItems', pinnedItems);
-  return { pinnedItems };
+  store.set('pinnedItems', appState.clipboard.pinnedItems);
+  return { pinnedItems: appState.clipboard.pinnedItems };
 });
 
 ipcMain.handle('get-pinned-items', () => {
-  return pinnedItems;
+  return appState.clipboard.pinnedItems;
 });
 
 ipcMain.handle('copy-to-clipboard', (event, text) => {
   clipboard.writeText(text);
-  lastClipboardText = text;
+  appState.clipboard.lastText = text;
   return true;
 });
 
 ipcMain.handle('set-master-url', async (event, url) => {
   store.set('masterSnippetUrl', url);
-  const result = await syncSnippets();
+  const result = await syncService.syncSnippets();
   return result;
 });
 
 ipcMain.handle('manual-sync', async () => {
-  const result = await syncSnippets();
+  const result = await syncService.syncSnippets();
   return {
     success: result.success,
     error: result.error,
@@ -976,22 +729,22 @@ ipcMain.handle('remove-master-url', async () => {
 });
 
 ipcMain.handle('hide-window', () => {
-  if (clipboardWindow) {
-    clipboardWindow.hide();
+  if (appState.windows.clipboard) {
+    appState.windows.clipboard.hide();
   }
   return true;
 });
 
 ipcMain.handle('hide-snippet-window', () => {
-  if (snippetWindow) {
-    snippetWindow.hide();
+  if (appState.windows.snippet) {
+    appState.windows.snippet.hide();
   }
   return true;
 });
 
 ipcMain.handle('hide-history-window', () => {
-  if (historyWindow) {
-    historyWindow.hide();
+  if (appState.windows.history) {
+    appState.windows.history.hide();
   }
   return true;
 });
@@ -1003,31 +756,31 @@ ipcMain.handle('quit-app', () => {
 });
 
 ipcMain.handle('show-settings', () => {
-  if (clipboardWindow && !clipboardWindow.isDestroyed()) {
-    clipboardWindow.destroy();
-    clipboardWindow = null;
+  if (appState.windows.clipboard && !appState.windows.clipboard.isDestroyed()) {
+    appState.windows.clipboard.destroy();
+    appState.windows.clipboard = null;
   }
   
-  if (snippetWindow && !snippetWindow.isDestroyed()) {
-    snippetWindow.destroy();
-    snippetWindow = null;
+  if (appState.windows.snippet && !appState.windows.snippet.isDestroyed()) {
+    appState.windows.snippet.destroy();
+    appState.windows.snippet = null;
   }
   
-  if (historyWindow && !historyWindow.isDestroyed()) {
-    historyWindow.destroy();
-    historyWindow = null;
+  if (appState.windows.history && !appState.windows.history.isDestroyed()) {
+    appState.windows.history.destroy();
+    appState.windows.history = null;
   }
   
   // 設定画面を表示
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
+  if (appState.windows.main) {
+    appState.windows.main.show();
+    appState.windows.main.focus();
   }
 });
 
 ipcMain.handle('hide-settings-window', () => {
-  if (mainWindow) {
-    mainWindow.hide();
+  if (appState.windows.main) {
+    appState.windows.main.hide();
   }
   return true;
 });
@@ -1058,8 +811,8 @@ ipcMain.on('clipboard-mouse-leave', () => {
   
   clipboardCloseTimer = setTimeout(() => {
     if (!isMouseOverClipboard) {
-      if (clipboardWindow) {
-        clipboardWindow.hide();
+      if (appState.windows.clipboard) {
+        appState.windows.clipboard.hide();
       }
     }
   }, 150);
@@ -1067,41 +820,30 @@ ipcMain.on('clipboard-mouse-leave', () => {
 
 ipcMain.handle('paste-text', async (event, text) => {
   // 変数を置換
-  const processedText = replaceVariables(text);
+  const processedText = variableService.replaceVariables(text, store);
   
   clipboard.writeText(processedText);
 
   // 使用した履歴を最新に移動
-  const existingIndex = clipboardHistory.findIndex(item => item.content === processedText);
+  const existingIndex = appState.clipboard.history.findIndex(item => item.content === processedText);
   if (existingIndex > 0) {
-    const [usedItem] = clipboardHistory.splice(existingIndex, 1);
+    const [usedItem] = appState.clipboard.history.splice(existingIndex, 1);
     usedItem.timestamp = new Date().toISOString();
-    clipboardHistory.unshift(usedItem);
-    store.set('clipboardHistory', clipboardHistory);
+    appState.clipboard.history.unshift(usedItem);
+    store.set('clipboardHistory', appState.clipboard.history);
   }
 
-  lastClipboardText = processedText;
+  appState.clipboard.lastText = processedText;
 
-  if (clipboardWindow) clipboardWindow.hide();
-  if (snippetWindow) snippetWindow.hide();
-  if (historyWindow) historyWindow.hide();
+  if (appState.windows.clipboard) appState.windows.clipboard.hide();
+  if (appState.windows.snippet) appState.windows.snippet.hide();
+  if (appState.windows.history) appState.windows.history.hide();
 
   // ウィンドウ閉じ待ち
   await new Promise(resolve => setTimeout(resolve, 10));
 
-  // Windows: フォーカスを戻してペースト（koffi使用）
-  if (process.platform === 'win32' && previousActiveApp) {
-    keybd_event(VK_MENU, 0, 0, null);
-    SetForegroundWindow(previousActiveApp);
-    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, null);
-    
-    await new Promise(resolve => setTimeout(resolve, 20));
-    
-    keybd_event(VK_CONTROL, 0, 0, null);
-    keybd_event(VK_V, 0, 0, null);
-    keybd_event(VK_V, 0, KEYEVENTF_KEYUP, null);
-    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, null);
-  }
+  // Windows: フォーカスを戻してペースト
+  await pasteService.pasteToActiveApp();
 
   return { success: true };
 });
@@ -1132,58 +874,62 @@ ipcMain.handle('get-personal-snippets', () => {
 });
 
 ipcMain.handle('save-personal-folders', (event, folders) => {
+  const current = personalStore.get('folders', []);
+  personalStore.set('folders_backup', current);
   personalStore.set('folders', folders);
   return true;
 });
 
 ipcMain.handle('save-personal-snippets', (event, snippets) => {
+  const current = personalStore.get('snippets', []);
+  personalStore.set('snippets_backup', current);
   personalStore.set('snippets', snippets);
   
-  if (clipboardWindow && !clipboardWindow.isDestroyed()) {
-    clipboardWindow.webContents.send('personal-snippets-updated');
+  if (appState.windows.clipboard && !appState.windows.clipboard.isDestroyed()) {
+    appState.windows.clipboard.webContents.send('personal-snippets-updated');
   }
-  if (snippetWindow && !snippetWindow.isDestroyed()) {
-    snippetWindow.webContents.send('personal-snippets-updated');
+  if (appState.windows.snippet && !appState.windows.snippet.isDestroyed()) {
+    appState.windows.snippet.webContents.send('personal-snippets-updated');
   }
   
   return true;
 });
 
 ipcMain.handle('open-snippet-editor', () => {
-  if (clipboardWindow && !clipboardWindow.isDestroyed()) {
-    clipboardWindow.destroy();
-    clipboardWindow = null;
+  if (appState.windows.clipboard && !appState.windows.clipboard.isDestroyed()) {
+    appState.windows.clipboard.destroy();
+    appState.windows.clipboard = null;
   }
   
-  if (snippetWindow && !snippetWindow.isDestroyed()) {
-    snippetWindow.destroy();
-    snippetWindow = null;
+  if (appState.windows.snippet && !appState.windows.snippet.isDestroyed()) {
+    appState.windows.snippet.destroy();
+    appState.windows.snippet = null;
   }
   
-  if (historyWindow && !historyWindow.isDestroyed()) {
-    historyWindow.destroy();
-    historyWindow = null;
+  if (appState.windows.history && !appState.windows.history.isDestroyed()) {
+    appState.windows.history.destroy();
+    appState.windows.history = null;
   }
   
-  if (!snippetEditorWindow || snippetEditorWindow.isDestroyed()) {
+  if (!appState.windows.snippetEditor || appState.windows.snippetEditor.isDestroyed()) {
     createSnippetEditorWindow();
   } else {
-    snippetEditorWindow.show();
-    snippetEditorWindow.focus();
+    appState.windows.snippetEditor.show();
+    appState.windows.snippetEditor.focus();
   }
   return true;
 });
 
 ipcMain.handle('close-snippet-editor', () => {
-  if (snippetEditorWindow) {
-    snippetEditorWindow.close();
+  if (appState.windows.snippetEditor) {
+    appState.windows.snippetEditor.close();
   }
   return true;
 });
 
 ipcMain.handle('get-snippet-window-bounds', () => {
-  if (snippetWindow && !snippetWindow.isDestroyed()) {
-    return snippetWindow.getBounds();
+  if (appState.windows.snippet && !appState.windows.snippet.isDestroyed()) {
+    return appState.windows.snippet.getBounds();
   }
   return { x: 0, y: 0, width: 460, height: 650 };
 });
@@ -1230,6 +976,33 @@ ipcMain.handle('get-master-folders', () => {
   return store.get('masterFolders', []);
 });
 
+ipcMain.handle('get-login-item-settings', () => {
+  const settings = app.getLoginItemSettings();
+  return settings.openAtLogin;
+});
+
+ipcMain.handle('set-login-item-settings', (event, enabled) => {
+  app.setLoginItemSettings({ openAtLogin: enabled });
+  return { success: true };
+});
+
+ipcMain.handle('get-history-max-count', () => {
+  return store.get('historyMaxCount', DEFAULT_MAX_HISTORY);
+});
+
+ipcMain.handle('set-history-max-count', (event, count) => {
+  const value = Math.max(10, Math.min(1000, parseInt(count) || DEFAULT_MAX_HISTORY));
+  store.set('historyMaxCount', value);
+  
+  const maxHistory = getMaxHistory();
+  if (appState.clipboard.history.length > maxHistory) {
+    appState.clipboard.history = appState.clipboard.history.slice(0, maxHistory);
+    store.set('clipboardHistory', appState.clipboard.history);
+  }
+  
+  return { success: true, value };
+});
+
 ipcMain.handle('save-master-order', async (event, orderData) => {
   try {
     const orderFile = path.join(app.getPath('userData'), 'master-snippets-order.json');
@@ -1253,25 +1026,25 @@ ipcMain.handle('get-master-order', async () => {
 ipcMain.handle('resize-window', (event, size) => {
   const sender = event.sender;
   
-  if (clipboardWindow && !clipboardWindow.isDestroyed() && sender === clipboardWindow.webContents) {
-    const currentBounds = clipboardWindow.getBounds();
-    clipboardWindow.setBounds({
+  if (appState.windows.clipboard && !appState.windows.clipboard.isDestroyed() && sender === appState.windows.clipboard.webContents) {
+    const currentBounds = appState.windows.clipboard.getBounds();
+    appState.windows.clipboard.setBounds({
       x: currentBounds.x,
       y: currentBounds.y,
       width: size.width,
       height: size.height
     });
-  } else if (snippetWindow && !snippetWindow.isDestroyed() && sender === snippetWindow.webContents) {
-    const currentBounds = snippetWindow.getBounds();
-    snippetWindow.setBounds({
+  } else if (appState.windows.snippet && !appState.windows.snippet.isDestroyed() && sender === appState.windows.snippet.webContents) {
+    const currentBounds = appState.windows.snippet.getBounds();
+    appState.windows.snippet.setBounds({
       x: currentBounds.x,
       y: currentBounds.y,
       width: size.width,
       height: size.height
     });
-  } else if (historyWindow && !historyWindow.isDestroyed() && sender === historyWindow.webContents) {
-    const currentBounds = historyWindow.getBounds();
-    historyWindow.setBounds({
+  } else if (appState.windows.history && !appState.windows.history.isDestroyed() && sender === appState.windows.history.webContents) {
+    const currentBounds = appState.windows.history.getBounds();
+    appState.windows.history.setBounds({
       x: currentBounds.x,
       y: currentBounds.y,
       width: size.width,
@@ -1283,39 +1056,18 @@ ipcMain.handle('resize-window', (event, size) => {
 });
 
 ipcMain.handle('export-snippets-xml', async (event, { xml, filename }) => {
-  try {
-    const { dialog } = require('electron');
-    const fs = require('fs');
-    
-    const result = await dialog.showSaveDialog({
-      defaultPath: filename,
-      filters: [
-        { name: 'XML Files', extensions: ['xml'] }
-      ]
-    });
-    
-    if (result.canceled) {
-      return { success: false, cancelled: true };
-    }
-    
-    fs.writeFileSync(result.filePath, xml, 'utf-8');
-    
-    return { success: true, path: result.filePath };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+  return await snippetImportExportService.exportSnippetsXml(xml, filename);
 });
 
-// マスタ編集パスワード
-const MASTER_EDIT_PASSWORD = '1108';
-
-ipcMain.handle('verify-master-password', (event, password) => {
-  return password === MASTER_EDIT_PASSWORD;
+ipcMain.handle('show-welcome-window', () => {
+  store.set('welcomeCompleted', false);
+  createWelcomeWindow();
+  return true;
 });
 
 ipcMain.handle('close-welcome-window', () => {
-  if (welcomeWindow) {
-    welcomeWindow.close();
+  if (appState.windows.welcome) {
+    appState.windows.welcome.close();
   }
   return true;
 });
@@ -1360,120 +1112,6 @@ function generateSnippetId(folder, title, content) {
 }
 
 
-// ========================================
-// 変数置換機能
-// ========================================
-
-/**
- * 日付をフォーマット
- */
-function formatDate(date, format) {
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  
-  if (format === 'MM/DD') {
-    return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
-  }
-  
-  if (format === 'M月D日') {
-    return `${month}月${day}日`;
-  }
-  
-  return date.toLocaleDateString('ja-JP');
-}
-
-/**
- * 曜日を取得（短縮形）
- */
-function getWeekdayShort(date) {
-  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-  return `（${weekdays[date.getDay()]}）`;
-}
-
-/**
- * N日後の日付を取得（1日を除外）
- */
-function addDaysExcluding1st(date, days, alternativeDays) {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  
-  // 1日だったら代替日数を使用
-  if (result.getDate() === 1) {
-    const alternative = new Date(date);
-    alternative.setDate(alternative.getDate() + alternativeDays);
-    return alternative;
-  }
-  
-  return result;
-}
-
-/**
- * 日付と曜日をフォーマット
- */
-function formatDateWithWeekday(date) {
-  return formatDate(date, 'M月D日') + getWeekdayShort(date);
-}
-
-/**
- * タイムスタンプをフォーマット
- */
-function formatTimestamp(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  
-  return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
-}
-
-/**
- * スニペット内の変数を実際の値に置換
- */
-function replaceVariables(text) {
-  const now = new Date();
-  const userName = store.get('userName', '');
-  
-  // {今日:MM/DD}
-  text = text.replace(/\{今日:MM\/DD\}/g, formatDate(now, 'MM/DD'));
-  
-  // {明日:MM/DD}
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  text = text.replace(/\{明日:MM\/DD\}/g, formatDate(tomorrow, 'MM/DD'));
-  
-  // 連動する日程計算（1日をスキップ、かつ重複しない）
-  const schedule1 = addDaysExcluding1st(now, 2, 3);
-  
-  // 日程2は日程1の翌日（ただし1日ならスキップ）
-  const schedule2Base = new Date(schedule1);
-  schedule2Base.setDate(schedule2Base.getDate() + 1);
-  const schedule2 = schedule2Base.getDate() === 1 
-    ? new Date(schedule2Base.setDate(schedule2Base.getDate() + 1))
-    : schedule2Base;
-  
-  // {2日後:M月D日:曜日短（毎月1日は除外して3日後）}
-  text = text.replace(
-    /\{2日後:M月D日:曜日短（毎月1日は除外して3日後）\}/g,
-    formatDateWithWeekday(schedule1) 
-  );
-  
-  // {3日後:M月D日:曜日短（毎月1日は除外して4日後）}
-  text = text.replace(
-    /\{3日後:M月D日:曜日短（毎月1日は除外して4日後）\}/g,
-    formatDateWithWeekday(schedule2)
-  );
-  
-  // {タイムスタンプ}
-  text = text.replace(/\{タイムスタンプ\}/g, formatTimestamp(now));
-  
-  // {名前}
-  text = text.replace(/\{名前\}/g, userName);
-  
-  return text;
-}
-
 // =====================================
 // 自動アップデート
 // =====================================
@@ -1482,8 +1120,8 @@ let isManualDownload = false;
 
 if (autoUpdater) if (autoUpdater) autoUpdater.on('update-downloaded', () => {
   // 手動ダウンロードの場合は設定画面に通知
-  if (isManualDownload && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-downloaded');
+  if (isManualDownload && appState.windows.main && !appState.windows.main.isDestroyed()) {
+    appState.windows.main.webContents.send('update-downloaded');
     isManualDownload = false;
     return;
   }
@@ -1504,8 +1142,8 @@ if (autoUpdater) if (autoUpdater) autoUpdater.on('update-downloaded', () => {
 
 // ダウンロード進捗
 if (autoUpdater) if (autoUpdater) autoUpdater.on('download-progress', (progressObj) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('download-progress', progressObj.percent);
+  if (appState.windows.main && !appState.windows.main.isDestroyed()) {
+    appState.windows.main.webContents.send('download-progress', progressObj.percent);
   }
 });
 
@@ -1531,8 +1169,11 @@ ipcMain.handle('get-app-version', () => {
 ipcMain.handle('check-for-updates', async () => {
   try {
     if (!app.isPackaged) {
-      // 開発環境ではダミーレスポンス
       return { updateAvailable: false, currentVersion: app.getVersion(), message: '開発環境です' };
+    }
+    
+    if (!autoUpdater) {
+      return { updateAvailable: false, currentVersion: app.getVersion(), error: true, message: 'アップデーターが利用できません' };
     }
     
     const result = await autoUpdater.checkForUpdates();
@@ -1574,39 +1215,92 @@ ipcMain.handle('check-for-updates', async () => {
   }
 });
 
+// =====================================
+// 日次自動アップデートチェック
+// =====================================
+const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
+const UPDATE_CHECK_STARTUP_DELAY = 2 * 1000;
+
+function scheduleDailyUpdateCheck() {
+  if (!app.isPackaged || !autoUpdater) {
+    console.log('📦 自動アップデートチェックをスキップ（開発環境 or autoUpdater無効）');
+    return;
+  }
+  
+  const checkIfNeeded = async () => {
+    try {
+      const lastCheck = store.get('lastAutoUpdateCheck', 0);
+      const now = Date.now();
+      
+      if (now - lastCheck < UPDATE_CHECK_INTERVAL) {
+        console.log('⏭️ 前回チェックから24時間未経過、スキップ');
+        return;
+      }
+      
+      console.log('🔄 日次アップデートチェック開始');
+      store.set('lastAutoUpdateCheck', now);
+      await autoUpdater.checkForUpdates();
+    } catch (error) {
+      console.error('⚠️ 日次アップデートチェック失敗:', error);
+    }
+  };
+  
+  setTimeout(checkIfNeeded, UPDATE_CHECK_STARTUP_DELAY);
+  setInterval(checkIfNeeded, UPDATE_CHECK_INTERVAL);
+}
+
 ipcMain.handle('google-login', async () => {
   try {
     // ログイン画面を非表示
-    if (loginWindow) {
-      loginWindow.hide();
+    if (appState.windows.login) {
+      appState.windows.login.hide();
     }
     
     const result = await googleAuth.authenticate();
     if (result.success) {
       const initResult = await memberManager.initialize();
       if (initResult.success) {
-        if (loginWindow) {
-          loginWindow.close();
+        if (appState.windows.login) {
+          appState.windows.login.close();
         }
+        store.set('scopeVersion', 3);
         startApp();
         return { success: true };
       } else if (initResult.error === 'not_registered') {
-        if (loginWindow) {
-          loginWindow.close();
+        if (appState.windows.login) {
+          appState.windows.login.close();
         }
         createNotRegisteredWindow(initResult.email);
         return { success: false, error: 'not_registered' };
       }
     }
     // 認証失敗時はログイン画面を再表示
-    if (loginWindow) {
-      loginWindow.show();
+    if (appState.windows.login) {
+      appState.windows.login.show();
     }
     return result;
   } catch (error) {
-    if (loginWindow) {
-      loginWindow.show();
+    if (appState.windows.login) {
+      appState.windows.login.show();
     }
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('google-login-for-onboarding', async () => {
+  try {
+    const result = await googleAuth.authenticate();
+    if (result.success) {
+      const initResult = await memberManager.initialize();
+      if (initResult.success) {
+        store.set('scopeVersion', 3);
+        return { success: true };
+      } else if (initResult.error === 'not_registered') {
+        return { success: false, error: 'メンバーリストに登録されていません。\n管理者に連絡してください。' };
+      }
+    }
+    return { success: false, error: '認証に失敗しました' };
+  } catch (error) {
     return { success: false, error: error.message };
   }
 });
@@ -1683,157 +1377,97 @@ ipcMain.handle('get-editable-departments', async () => {
   };
 });
 
-ipcMain.handle('upload-department-xml', async (event, { departmentName, xmlContent }) => {
+ipcMain.handle('get-viewable-departments', async () => {
   try {
     const member = memberManager.getCurrentMember();
-    if (!member) return { success: false, error: '未ログイン' };
+    if (!member || (member.role !== '最高管理者' && member.role !== '管理者')) {
+      return { departments: [], role: member?.role };
+    }
     
-    if (member.role === '一般') {
+    const allDepartments = await sheetsApi.getDepartmentSettings();
+    const otherDepartments = allDepartments.filter(d => !member.departments.includes(d.name));
+    
+    return {
+      departments: otherDepartments,
+      role: member.role,
+      userDepartments: member.departments
+    };
+  } catch (error) {
+    return { departments: [], error: error.message };
+  }
+});
+
+ipcMain.handle('get-other-department-snippets', async (event, departmentName) => {
+  try {
+    const member = memberManager.getCurrentMember();
+    if (!member || (member.role !== '最高管理者' && member.role !== '管理者')) {
       return { success: false, error: '権限がありません' };
     }
     
-    if (member.role === '管理者' && !member.departments.includes(departmentName)) {
-      return { success: false, error: 'この部署の編集権限がありません' };
+    const xmlResult = await memberManager.getDepartmentXml(departmentName);
+    if (!xmlResult || !xmlResult.xml) {
+      return { success: false, error: 'XMLデータが取得できません' };
     }
     
-    const departments = await sheetsApi.getDepartmentSettings();
-    const dept = departments.find(d => d.name === departmentName);
-    
-    if (!dept || !dept.xmlFileId) {
-      return { success: false, error: '部署のXMLファイルが設定されていません' };
-    }
-    
-    // そのまますり替え（既存データは上書き）
-    const result = await driveApi.updateFileContent(dept.xmlFileId, xmlContent);
-    
-    if (result.success) {
-      await loadDepartmentSnippets();
-      return { success: true };
-    }
-    
-    return { success: false, error: result.error || 'アップロード失敗' };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-function escapeXmlForMerge(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-}
-
-ipcMain.handle('import-personal-xml', async (event, xmlContent) => {
-  try {
-    const parser = new xml2js.Parser({ 
+    const parser = new xml2js.Parser({
       explicitArray: false,
       strict: false,
       trim: true,
-      normalizeTags: true
+      normalize: false,
+      normalizeTags: true,
+      attrkey: '$',
+      charkey: '_',
+      explicitCharkey: false,
+      mergeAttrs: false
     });
     
-    const result = await parser.parseStringPromise(xmlContent);
+    const result = await parser.parseStringPromise(xmlResult.xml);
     const foldersData = result.folders || result.FOLDERS;
+    const snippets = [];
     
-    if (!foldersData) {
-      return { success: false, error: 'XMLの形式が正しくありません' };
-    }
-    
-    const folderArray = Array.isArray(foldersData.folder || foldersData.FOLDER) 
-      ? (foldersData.folder || foldersData.FOLDER)
-      : [foldersData.folder || foldersData.FOLDER];
-    
-    // 既存データを取得
-    const existingFolders = personalStore.get('folders', []);
-    const existingSnippets = personalStore.get('snippets', []);
-    
-    let addedFolders = 0;
-    let addedSnippets = 0;
-    let updatedSnippets = 0;
-    
-    const newFolders = [...existingFolders];
-    const newSnippets = [...existingSnippets];
-    
-    folderArray.forEach(folder => {
-      if (!folder) return;
-      const folderName = folder.title || 'Imported';
+    if (foldersData && (foldersData.folder || foldersData.FOLDER)) {
+      const folderArray = Array.isArray(foldersData.folder || foldersData.FOLDER)
+        ? (foldersData.folder || foldersData.FOLDER)
+        : [foldersData.folder || foldersData.FOLDER];
       
-      // フォルダが存在しなければ追加
-      if (!newFolders.includes(folderName)) {
-        newFolders.push(folderName);
-        addedFolders++;
-      }
-      
-      const snippetArray = folder.snippets?.snippet
-        ? (Array.isArray(folder.snippets.snippet) 
-            ? folder.snippets.snippet 
-            : [folder.snippets.snippet])
-        : [];
-      
-      snippetArray.forEach(snippet => {
-        if (!snippet) return;
-        const snippetTitle = snippet.title || '無題';
+      folderArray.forEach(folder => {
+        const folderName = folder.title || 'Uncategorized';
+        const snippetArray = folder.snippets && folder.snippets.snippet
+          ? (Array.isArray(folder.snippets.snippet)
+              ? folder.snippets.snippet
+              : [folder.snippets.snippet])
+          : [];
         
-        // 同名スニペットを検索（同じフォルダ内）
-        const existingIndex = newSnippets.findIndex(s => 
-          s.folder === folderName && s.title === snippetTitle
-        );
-        
-        if (existingIndex >= 0) {
-          // 同名スニペットは更新
-          newSnippets[existingIndex] = {
-            ...newSnippets[existingIndex],
-            content: snippet.content || '',
-            description: snippet.description || newSnippets[existingIndex].description || ''
-          };
-          updatedSnippets++;
-        } else {
-          // 新規スニペットは追加
-          newSnippets.push({
-            id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
-            title: snippetTitle,
+        snippetArray.forEach(snippet => {
+          snippets.push({
+            id: snippet.id || generateSnippetId(folderName, snippet.title || '', (snippet.content || '').substring(0, 100)),
+            title: snippet.title || '',
             content: snippet.content || '',
             description: snippet.description || '',
-            folder: folderName
+            folder: folderName,
+            department: departmentName
           });
-          addedSnippets++;
-        }
+        });
       });
-    });
+    }
     
-    personalStore.set('folders', newFolders);
-    personalStore.set('snippets', newSnippets);
-    
-    return { 
-      success: true, 
-      importedFolders: addedFolders,
-      importedSnippets: addedSnippets,
-      updatedSnippets: updatedSnippets
-    };
+    const folders = [...new Set(snippets.map(s => s.folder))];
+    return { success: true, snippets, folders };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
+ipcMain.handle('upload-department-xml', async (event, { departmentName, xmlContent }) => {
+  return await snippetPromotionService.uploadDepartmentXml(departmentName, xmlContent);
+});
+
+ipcMain.handle('import-personal-xml', async (event, xmlContent) => {
+  return await snippetImportExportService.importPersonalXml(xmlContent);
+});
+
 ipcMain.handle('select-xml-file', async () => {
-  try {
-    const { dialog } = require('electron');
-    const result = await dialog.showOpenDialog({
-      title: 'XMLファイルを選択',
-      filters: [{ name: 'XML Files', extensions: ['xml'] }],
-      properties: ['openFile']
-    });
-    
-    if (result.canceled || result.filePaths.length === 0) {
-      return { success: false };
-    }
-    
-    const filePath = result.filePaths[0];
-    const content = fs.readFileSync(filePath, 'utf-8');
-    
-    return { success: true, content, path: filePath };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+  return await snippetImportExportService.selectXmlFile();
 });
 
 ipcMain.handle('is-admin', () => {

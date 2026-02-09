@@ -14,6 +14,9 @@ struct AccountTab: View {
     @State private var isSyncing = false
     @State private var lastSyncDate: Date?
     @State private var syncError: String?
+    @State private var isPersonalSyncing = false
+    @State private var lastPersonalSyncDate: Date?
+    @State private var personalSyncError: String?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -56,7 +59,7 @@ struct AccountTab: View {
                     
                     Divider()
                     
-                    // Sync Section
+                    // Master Sync Section
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Button(action: syncNow) {
@@ -88,6 +91,46 @@ struct AccountTab: View {
                         }
                         
                         if let error = syncError {
+                            Text("エラー: \(error)")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // Personal Sync Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Button(action: syncPersonalNow) {
+                                HStack {
+                                    if isPersonalSyncing {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "icloud.and.arrow.up")
+                                    }
+                                    Text(isPersonalSyncing ? "同期中..." : "個別スニペットを同期")
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isPersonalSyncing)
+                            
+                            Spacer()
+                        }
+                        
+                        if let lastSync = lastPersonalSyncDate {
+                            Text("最終同期: \(formatDate(lastSync))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if let error = personalSyncError {
                             Text("エラー: \(error)")
                                 .font(.caption)
                                 .foregroundColor(.red)
@@ -146,6 +189,9 @@ struct AccountTab: View {
             userName = email.components(separatedBy: "@").first ?? ""
         }
         lastSyncDate = StorageService.shared.getSettings().lastSyncDate
+        if let personalSyncDateString = UserDefaults.standard.string(forKey: "lastPersonalSyncDate") {
+            lastPersonalSyncDate = ISO8601DateFormatter().date(from: personalSyncDateString)
+        }
     }
     
     private func loadCachedInfo() {
@@ -213,6 +259,23 @@ struct AccountTab: View {
                 if let role = syncResult.memberRole { userRole = role }
             case .failure(let error):
                 syncError = error.localizedDescription
+            }
+        }
+    }
+    
+    private func syncPersonalNow() {
+        isPersonalSyncing = true
+        personalSyncError = nil
+        
+        PersonalSyncService.shared.syncPersonalSnippets { result in
+            isPersonalSyncing = false
+            
+            switch result {
+            case .success:
+                lastPersonalSyncDate = Date()
+                UserDefaults.standard.set(ISO8601DateFormatter().string(from: Date()), forKey: "lastPersonalSyncDate")
+            case .failure(let error):
+                personalSyncError = error.localizedDescription
             }
         }
     }

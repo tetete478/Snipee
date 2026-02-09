@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snipee - ログイン</title>
+  <link rel="stylesheet" href="../theme/variables.css">
+  <link rel="stylesheet" href="../theme/common.css">
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: var(--bg-primary);
+      font-family: var(--font-family);
+    }
+    
+    .login-container {
+      text-align: center;
+      padding: 40px;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      max-width: 400px;
+    }
+    
+    .logo {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    
+    .app-name {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+    
+    .description {
+      color: var(--text-secondary);
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .login-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 24px;
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .login-btn:hover {
+      background: #3367d6;
+    }
+    
+    .login-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .google-icon {
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 2px;
+      padding: 2px;
+    }
+    
+    .status {
+      margin-top: 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    
+    .error {
+      color: #e74c3c;
+    }
+
+    .notice {
+      background: rgba(255, 193, 7, 0.15);
+      border: 1px solid rgba(255, 193, 7, 0.5);
+      border-radius: 6px;
+      padding: 10px 15px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .logout-btn {
+      margin-top: 15px;
+      padding: 8px 16px;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .logout-btn:hover {
+      background: var(--bg-hover);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo">📋</div>
+    <div class="app-name">Snipee</div>
+    <div class="description">
+    続行するにはGoogleアカウントでログインしてください
+  </div>
+
+  <div class="notice">
+    ⚠️ <strong>@team.addness.co.jp</strong> のアカウントを使用してください
+  </div>
+
+  <button class="login-btn" id="loginBtn">
+      <svg class="google-icon" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Googleでログイン
+    </button>
+    
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    
+    const loginBtn = document.getElementById('loginBtn');
+    const status = document.getElementById('status');
+    
+    loginBtn.addEventListener('click', async () => {
+      loginBtn.disabled = true;
+      status.textContent = 'ログイン中...';
+      status.className = 'status';
+      
+      try {
+        const result = await ipcRenderer.invoke('google-login');
+        if (result.success) {
+          status.textContent = 'ログイン成功！';
+        } else {
+          status.textContent = result.error || 'ログインに失敗しました';
+          status.className = 'status error';
+          loginBtn.disabled = false;
+          showLogoutOption();
+        }
+      } catch (error) {
+        status.textContent = 'エラーが発生しました';
+        status.className = 'status error';
+        loginBtn.disabled = false;
+        showLogoutOption();
+      }
+    });
+
+    // ログアウトボタン（エラー時に表示）
+    function showLogoutOption() {
+      const container = document.querySelector('.login-container');
+      if (!document.getElementById('logoutBtn')) {
+        const logoutBtn = document.createElement('button');
+        logoutBtn.id = 'logoutBtn';
+        logoutBtn.className = 'logout-btn';
+        logoutBtn.textContent = '別のアカウントでログイン';
+        logoutBtn.addEventListener('click', async () => {
+          await ipcRenderer.invoke('google-logout');
+          status.textContent = '';
+          loginBtn.disabled = false;
+        });
+        container.appendChild(logoutBtn);
+      }
+    }
+  </script>
+</body>
+</html>

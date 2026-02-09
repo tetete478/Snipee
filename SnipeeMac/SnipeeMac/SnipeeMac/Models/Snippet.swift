@@ -1,11 +1,4 @@
 //
-//  Untitled.swift
-//  SnipeeMac
-//
-//  Created by てててMac on 2026/01/14.
-//
-
-//
 //  Snippet.swift
 //  SnipeeMac
 //
@@ -25,8 +18,10 @@ struct Snippet: Codable, Identifiable {
     var type: SnippetType
     var description: String?
     var order: Int
+    var createdAt: String?
+    var updatedAt: String?
     
-    init(id: String = UUID().uuidString, title: String, content: String, folder: String, type: SnippetType = .personal, description: String? = nil, order: Int = 0) {
+    init(id: String = UUID().uuidString, title: String, content: String, folder: String, type: SnippetType = .personal, description: String? = nil, order: Int = 0, createdAt: String? = nil, updatedAt: String? = nil) {
         self.id = id
         self.title = title
         self.content = content
@@ -34,6 +29,8 @@ struct Snippet: Codable, Identifiable {
         self.type = type
         self.description = description
         self.order = order
+        self.createdAt = createdAt ?? ISO8601DateFormatter().string(from: Date())
+        self.updatedAt = updatedAt ?? ISO8601DateFormatter().string(from: Date())
     }
 }
 
@@ -42,11 +39,13 @@ struct SnippetFolder: Codable, Identifiable {
     var name: String
     var snippets: [Snippet]
     var order: Int
+    var updatedAt: String?
     
-    init(id: String = UUID().uuidString, name: String, snippets: [Snippet] = [], order: Int = 0) {
+    init(id: String = UUID().uuidString, name: String, snippets: [Snippet] = [], order: Int = 0, updatedAt: String? = nil) {
         self.id = id
         self.name = name
         self.snippets = snippets
         self.order = order
+        self.updatedAt = updatedAt ?? ISO8601DateFormatter().string(from: Date())
     }
 }

@@ -74,6 +74,9 @@ class StorageService {
             return
         }
         userDefaults.set(data, forKey: Keys.personalSnippets)
+        
+        // クラウド同期トリガー（5秒デバウンス）
+        PersonalSyncService.shared.uploadPersonalDataDebounced()
     }
     
     func getMasterSnippets() -> [SnippetFolder] {

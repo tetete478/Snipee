@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(dir /s /b \"c:\\\\Users\\\\komat\\\\Snipee\\\\app\")"
+    ]
+  }
+}

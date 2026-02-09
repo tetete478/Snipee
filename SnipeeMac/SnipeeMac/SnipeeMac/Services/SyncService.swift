@@ -95,13 +95,17 @@ class SyncService {
     
     func uploadMasterSnippets(folders: [SnippetFolder], completion: @escaping (Result<Void, Error>) -> Void) {
         guard let department = UserDefaults.standard.string(forKey: "userDepartment") else {
-            completion(.failure(SyncError.notLoggedIn))
+            completion(.failure(SyncError.detailedError("部署情報なし（userDepartment未設定）。ログアウト→再ログインしてください。")))
             return
         }
 
         GoogleSheetsService.shared.fetchDepartmentFileId(department: department) { result in
             switch result {
             case .success(let fileId):
+                if fileId.isEmpty {
+                    completion(.failure(SyncError.detailedError("部署「\(department)」のXMLファイルIDが空です。管理者にスプシを確認してもらってください。")))
+                    return
+                }
                 let xmlString = XMLParserHelper.export(folders: folders)
                 guard let xmlData = xmlString.data(using: .utf8) else {
                     completion(.failure(SyncError.syncFailed))
@@ -179,11 +183,13 @@ struct SyncResult {
 enum SyncError: Error, LocalizedError {
     case notLoggedIn
     case syncFailed
+    case detailedError(String)
     
     var errorDescription: String? {
         switch self {
         case .notLoggedIn: return "ログインしてください"
         case .syncFailed: return "同期に失敗しました"
+        case .detailedError(let message): return message
         }
     }
 }

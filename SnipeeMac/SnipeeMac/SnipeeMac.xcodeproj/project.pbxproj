@@ -282,7 +282,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnipeeMac/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Snipee;
+				INFOPLIST_KEY_CFBundleDisplayName = SnipeeMac;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "他のアプリケーションにテキストを貼り付けるために必要です。";
@@ -320,7 +320,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnipeeMac/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Snipee;
+				INFOPLIST_KEY_CFBundleDisplayName = SnipeeMac;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "他のアプリケーションにテキストを貼り付けるために必要です。";

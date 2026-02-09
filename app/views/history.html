@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Snipee - 履歴専用</title>
+  <link rel="stylesheet" href="../theme/variables.css">
+  <link rel="stylesheet" href="../theme/common.css">
+  <script src="../utilities/utils.js"></script>
+  <script src="../utilities/theme.js"></script>
+  <style>
+    /* history.html 固有のスタイルのみ */
+    .popup-container {
+      width: 120px;
+    }
+  </style>
+</head>
+<body class="popup-window">
+  <div class="container popup-container">
+    <div class="content" id="main-content">
+      <div class="section">
+        <div class="section-header">📋 履歴</div>
+        <div id="history-section"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="submenu-overlay">
+    <div class="submenu-container" id="inline-submenu"></div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    let historyItems = [];
+    let pinnedItems = [];
+    let nav;
+
+    async function init() {
+      setupEventListeners();
+      await loadAllItems();
+    }
+
+    async function loadAllItems(sendReady = true) {
+      const data = await ipcRenderer.invoke('get-all-items');
+      
+      historyItems = data.history || [];
+      
+      pinnedItems = await ipcRenderer.invoke('get-pinned-items') || [];
+
+      render();
+  
+      if (sendReady) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const bodyRect = document.body.getBoundingClientRect();
+        const actualWidth = Math.ceil(bodyRect.width);
+        const actualHeight = Math.ceil(bodyRect.height);
+        
+        await ipcRenderer.invoke('resize-window', { width: actualWidth, height: actualHeight });
+        
+        ipcRenderer.send('window-ready');
+      }
+    }
+
+    function setupEventListeners() {
+      nav = new KeyboardNavigator({
+        itemSelector: '.menu-item[data-history-group], .action-item',
+        onFocusChange: (item) => {
+          if (item && !item.classList.contains('action-item')) {
+            showSubmenuForSelectedItem(false);
+          } else {
+            hideInlineSubmenu();
+          }
+        },
+        onEscape: async () => {
+          if (nav.isSubmenuOpen) {
+            hideInlineSubmenu();
+          } else {
+            await ipcRenderer.invoke('hide-history-window');
+          }
+        },
+        onEnter: (item) => {
+          if (item?.classList.contains('action-item')) {
+            item.click();
+          } else {
+            showSubmenuForSelectedItem();
+          }
+        },
+        onRight: () => {
+          const item = nav.getSelectedItem();
+          if (item && !item.classList.contains('action-item')) {
+            showSubmenuForSelectedItem(true);
+          }
+        },
+        onLeft: () => hideInlineSubmenu(),
+        onSubmenuEnter: (item) => pasteSubmenuItem(item.content),
+        onSubmenuMove: () => nav.updateSubmenuVisual()
+      });
+      nav.attach();
+
+      ipcRenderer.on('clipboard-updated', () => {
+        loadAllItems(false);
+      });
+    }
+
+    function render() {
+      renderHistory();
+      updateSelectableItems();
+    }
+
+    function renderHistory() {
+      const container = document.getElementById('history-section');
+
+      if (historyItems.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">履歴がありません</div></div>';
+        return;
+      }
+
+      const groups = groupHistoryItems(historyItems);
+      
+      container.innerHTML = groups.map((group, index) => `
+        <div class="menu-item" 
+            data-group-id="history-${index}"
+            data-history-group="${btoa(encodeURIComponent(JSON.stringify(group.items)))}">
+          <div class="menu-item-left">
+            <span class="menu-item-icon">${group.isPinned ? '📌' : '📄'}</span>
+            <span class="menu-item-text">${group.label}</span>
+          </div>
+          <span class="menu-item-arrow">›</span>
+        </div>
+      `).join('');
+    }
+
+    function groupHistoryItems(items) {
+      if (items.length === 0) return [];
+      
+      const totalCount = items.length;
+      const groups = [];
+      
+      const pinned = items.filter(item => pinnedItems.includes(item.id));
+      if (pinned.length > 0) {
+        groups.push({
+          label: '● ピン留め',
+          items: pinned,
+          isPinned: true
+        });
+      }
+      
+      for (let i = 0; i < Math.min(totalCount, 45); i += 15) {
+        const start = i + 1;
+        const end = Math.min(i + 15, totalCount);
+        const groupItems = items.slice(i, i + 15);
+        
+        groups.push({
+          start,
+          end,
+          label: `${start} - ${end}`,
+          items: groupItems,
+          isPinned: false
+        });
+      }
+      
+      return groups;
+    }
+
+    function updateSelectableItems() {
+      nav.updateItems('.menu-item[data-history-group], .action-item');
+      
+      nav.selectableItems.forEach((item, index) => {
+        item.addEventListener('mouseenter', () => {
+          nav.selectedIndex = index;
+          nav.updateVisual();
+          if (!item.classList.contains('action-item')) {
+            showSubmenuForSelectedItem(false);
+          } else {
+            hideInlineSubmenu();
+          }
+        });
+        
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (item.classList.contains('action-item')) {
+            return;
+          }
+          showSubmenuForSelectedItem(true);
+        });
+      });
+    }
+
+    function showSubmenuForSelectedItem(focusSubmenu = true) {
+      const item = nav.getSelectedItem();
+      if (!item) return;
+      
+      if (item.classList.contains('action-item')) {
+        hideInlineSubmenu();
+        return;
+      }
+      
+      if (item.classList.contains('menu-item') && item.hasAttribute('data-history-group')) {
+        try {
+          const rawData = item.getAttribute('data-history-group');
+          const historyData = JSON.parse(decodeURIComponent(atob(rawData)));
+          const items = historyData.map(h => ({
+            id: h.id,
+            type: 'history',
+            title: h.content.substring(0, 30) + (h.content.length > 30 ? '...' : ''),
+            content: h.content
+          }));
+          
+          if (items.length > 0) {
+            showInlineSubmenu(item, items, focusSubmenu);
+          }
+        } catch (error) {
+          ipcRenderer.send('log', `JSON parse error: ${error.message}`);
+          // エラーは無視
+        }
+      }
+    }
+    
+    async function showInlineSubmenu(targetElement, items, focusSubmenu = true) {
+      const submenu = document.getElementById('inline-submenu');
+      const bounds = targetElement.getBoundingClientRect();
+      
+      await ipcRenderer.invoke('resize-window', { width: SUBMENU_CONFIG.maxWindowWidth, height: SUBMENU_CONFIG.maxWindowHeight });
+      
+      let top = SUBMENU_CONFIG.margin + SUBMENU_CONFIG.topOffset;
+      
+      const maxHeight = SUBMENU_CONFIG.maxWindowHeight - SUBMENU_CONFIG.margin * 2;
+      submenu.style.maxHeight = maxHeight + 'px';
+      submenu.style.overflowY = 'auto';
+      
+      submenu.style.left = (bounds.right - 5) + 'px';
+      submenu.style.top = top + 'px';
+      
+      if (focusSubmenu) {
+        nav.openSubmenu(items);
+      }
+      
+      submenu.innerHTML = items.map((item, index) => {
+        const isPinned = pinnedItems.includes(item.id);
+        const pinIcon = isPinned ? '●' : '○';
+        
+        const displayText = item.title || item.content || '';
+        const truncatedText = displayText.length > 25 ? displayText.substring(0, 25) + '...' : displayText;
+        
+        return `
+        <div class="submenu-item ${focusSubmenu && index === 0 ? 'selected' : ''}" data-index="${index}">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div class="submenu-item-title"><span class="submenu-item-icon">📄</span> ${index + 1}. ${escapeHtml(truncatedText)}</div>
+            <span class="pin-button" data-item-id="${item.id}" style="cursor: pointer; font-size: 10px; flex-shrink: 0; color: #666; -webkit-app-region: no-drag;">${pinIcon}</span>
+          </div>
+        </div>
+      `;
+      }).join('');
+      
+      submenu.classList.add('visible');
+  
+      submenu.querySelectorAll('.submenu-item').forEach((element, index) => {
+        element.addEventListener('click', async () => {
+          await pasteSubmenuItem(items[index].content);
+        });
+      });
+
+      submenu.querySelectorAll('.pin-button').forEach((button) => {
+        button.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const itemId = button.getAttribute('data-item-id');
+          const result = await ipcRenderer.invoke('toggle-pin-item', itemId);
+          pinnedItems = result.pinnedItems;
+          await loadAllItems(false);
+        });
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const containerRect = document.querySelector('.container').getBoundingClientRect();
+      const submenuRect = submenu.getBoundingClientRect();
+
+      const actualWidth = Math.ceil(containerRect.width + submenuRect.width + 15);
+      const actualHeight = Math.ceil(Math.max(containerRect.height, submenuRect.height + 20));
+
+      await ipcRenderer.invoke('resize-window', { width: actualWidth, height: actualHeight });
+    }
+
+    async function hideInlineSubmenu() {
+      const submenu = document.getElementById('inline-submenu');
+      submenu.classList.remove('visible');
+      nav.closeSubmenu();
+      
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      const containerRect = document.querySelector('.container').getBoundingClientRect();
+      const actualWidth = Math.ceil(containerRect.width);
+      const actualHeight = Math.ceil(containerRect.height);
+      
+      await ipcRenderer.invoke('resize-window', { width: actualWidth, height: actualHeight });
+    }
+
+    async function pasteSubmenuItem(content) {
+      const decodedContent = decodeHtmlEntities(content);
+      
+      hideInlineSubmenu();
+      await ipcRenderer.invoke('hide-history-window');
+      
+      const result = await ipcRenderer.invoke('paste-text', decodedContent);
+      
+      if (!result.success && result.error !== 'permission_denied') {
+        ipcRenderer.send('log', '自動ペースト失敗、クリップボードにコピー済み');
+      }
+    }
+
+    window.addEventListener('focus', () => {
+      loadAllItems(false);
+      nav.selectedIndex = 0;
+      nav.updateVisual();
+    });
+
+    init();
+  </script>
+</body>
+</html>

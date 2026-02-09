@@ -24,7 +24,7 @@ struct ContentPanel: View {
     @State private var saveState: SaveState = .none
     @State private var saveTask: Task<Void, Never>?
     @State private var hasUnsavedChanges = false
-    @State private var isLoadingSnippet = false
+    @State private var snippetIndex: [String: Snippet] = [:]
     @FocusState private var isTitleFieldFocused: Bool
     
     enum SaveState {
@@ -38,7 +38,8 @@ struct ContentPanel: View {
     }
     
     var selectedSnippet: Snippet? {
-        selectedFolder?.snippets.first { $0.id == selectedSnippetId }
+        guard let snippetId = selectedSnippetId else { return nil }
+        return selectedFolder?.snippets.first { $0.id == snippetId }
     }
     
     private var isEditable: Bool {
@@ -70,29 +71,22 @@ struct ContentPanel: View {
             loadSnippet()
         }
         .onChange(of: selectedSnippetId) { oldValue, newValue in
-            // 切り替え前に変更があれば保存
-            if oldValue != nil && hasUnsavedChanges {
-                saveImmediately()
-            }
             loadSnippet()
         }
         .onChange(of: selectedFolderId) { oldValue, newValue in
-            // フォルダ切り替え前に変更があれば保存
-            if oldValue != nil && hasUnsavedChanges {
-                saveImmediately()
-            }
+            loadSnippet()
         }
         .onChange(of: folders.count) { oldValue, newValue in
             loadSnippet()
         }
         .onChange(of: editingContent) { oldValue, newValue in
-            if oldValue != newValue && !isLoadingSnippet {
+            if oldValue != newValue && newValue != selectedSnippet?.content {
                 hasUnsavedChanges = true
                 autoSave()
             }
         }
         .onChange(of: editingDescription) { oldValue, newValue in
-            if oldValue != newValue && !isLoadingSnippet {
+            if oldValue != newValue && newValue != (selectedSnippet?.description ?? "") {
                 hasUnsavedChanges = true
                 autoSave()
             }
@@ -319,7 +313,18 @@ struct ContentPanel: View {
     // MARK: - Actions
     
     private func loadSnippet() {
-        isLoadingSnippet = true
+        // 切り替え前に変更があれば保存
+        if hasUnsavedChanges {
+            saveImmediately()
+        }
+        
+        // スニペットインデックス再構築
+        if let folder = selectedFolder {
+            snippetIndex = Dictionary(uniqueKeysWithValues: folder.snippets.map { ($0.id, $0) })
+        } else {
+            snippetIndex = [:]
+        }
+        
         isEditingTitle = false
         hasUnsavedChanges = false
         if let snippet = selectedSnippet {
@@ -330,9 +335,6 @@ struct ContentPanel: View {
             editingTitle = ""
             editingContent = ""
             editingDescription = ""
-        }
-        DispatchQueue.main.async {
-            isLoadingSnippet = false
         }
     }
     

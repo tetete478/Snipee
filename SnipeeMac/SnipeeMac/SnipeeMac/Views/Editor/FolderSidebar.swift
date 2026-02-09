@@ -31,6 +31,9 @@ struct FolderSidebar: View {
     @State private var draggingFolderIsMaster: Bool = false
     @State private var isMasterSectionExpanded: Bool = true
     @State private var isPersonalSectionExpanded: Bool = true
+    @State private var showDeleteAlert: Bool = false
+    @State private var deleteAlertMessage: String = ""
+    @State private var pendingDeleteAction: (() -> Void)?
     
     
     
@@ -103,9 +106,15 @@ struct FolderSidebar: View {
                                         selectedFolderId = folder.id
                                         selectedSnippetId = snippet.id
                                     },
-                                    onDeleteFolder: { deleteFolder(folder) },
+                                    onDeleteFolder: {
+                                        deleteAlertMessage = "「\(folder.name)」フォルダを削除しますか？\n（スニペット\(folder.snippets.count)件も削除されます）"
+                                        pendingDeleteAction = { deleteFolder(folder) }
+                                        showDeleteAlert = true
+                                    },
                                     onDeleteSnippet: { snippet in
-                                        deleteSnippet(snippet, from: folder)
+                                        deleteAlertMessage = "「\(snippet.title)」を削除しますか？"
+                                        pendingDeleteAction = { deleteSnippet(snippet, from: folder) }
+                                        showDeleteAlert = true
                                     },
                                     onMoveSnippet: { from, to in
                                         movePersonalSnippet(in: folder, from: from, to: to)
@@ -205,9 +214,15 @@ struct FolderSidebar: View {
                                     selectedFolderId = folder.id
                                     selectedSnippetId = snippet.id
                                 },
-                                onDeleteFolder: { deleteMasterFolder(folder) },
+                                onDeleteFolder: {
+                                    deleteAlertMessage = "マスタ「\(folder.name)」フォルダを削除しますか？\n（スニペット\(folder.snippets.count)件も削除されます）"
+                                    pendingDeleteAction = { deleteMasterFolder(folder) }
+                                    showDeleteAlert = true
+                                },
                                 onDeleteSnippet: { snippet in
-                                    deleteMasterSnippet(snippet, from: folder)
+                                    deleteAlertMessage = "マスタ「\(snippet.title)」を削除しますか？"
+                                    pendingDeleteAction = { deleteMasterSnippet(snippet, from: folder) }
+                                    showDeleteAlert = true
                                 },
                                 onMoveSnippet: { from, to in
                                     moveMasterSnippet(in: folder, from: from, to: to)
@@ -286,6 +301,17 @@ struct FolderSidebar: View {
         }
         .background(Color(.windowBackgroundColor))
         // フォルダ追加シート
+        .alert("削除確認", isPresented: $showDeleteAlert) {
+            Button("削除", role: .destructive) {
+                pendingDeleteAction?()
+                pendingDeleteAction = nil
+            }
+            Button("キャンセル", role: .cancel) {
+                pendingDeleteAction = nil
+            }
+        } message: {
+            Text(deleteAlertMessage)
+        }
         .sheet(isPresented: $isAddingFolder) {
             AddFolderSheet(
                 folderName: $newFolderName,
@@ -301,6 +327,16 @@ struct FolderSidebar: View {
             }
             if let firstPersonal = personalFolders.first {
                 expandedPersonalFolderIds.insert(firstPersonal.id)
+            }
+        }
+        .onChange(of: selectedFolderId) { _, newValue in
+            guard let newId = newValue else { return }
+            if personalFolders.contains(where: { $0.id == newId }) {
+                isPersonalSectionExpanded = true
+                expandedPersonalFolderIds.insert(newId)
+            } else if masterFolders.contains(where: { $0.id == newId }) {
+                isMasterSectionExpanded = true
+                expandedMasterFolderIds.insert(newId)
             }
         }
     }

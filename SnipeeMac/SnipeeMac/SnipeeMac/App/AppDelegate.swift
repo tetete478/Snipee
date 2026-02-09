@@ -53,6 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         hotkeyService.stopListening()
         clipboardService.stopMonitoring()
         syncTimer?.invalidate()
+        PersonalSyncService.shared.stopAutoSync()
     }
     
     
@@ -220,6 +221,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // Sync on launch if logged in
         if GoogleAuthService.shared.isLoggedIn {
             performSync()
+            performPersonalSync()
+            PersonalSyncService.shared.startAutoSync()
         }
         
         // Setup hourly sync timer
@@ -242,6 +245,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
     }
     
+    
+    private func performPersonalSync() {
+        guard GoogleAuthService.shared.isLoggedIn else { return }
+        
+        PersonalSyncService.shared.syncPersonalSnippets { result in
+            switch result {
+            case .success:
+                break
+            case .failure(let error):
+                print("個別スニペット同期失敗: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    
     // MARK: - Scope Version Check
         
     private func checkScopeVersionAndReloginIfNeeded() {
@@ -252,7 +270,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             // 古いスコープでログイン済みの場合は強制ログアウト
             if GoogleAuthService.shared.isLoggedIn {
                 GoogleAuthService.shared.logout()
-                print("スコープ変更のため再ログインが必要です")
             }
             // 新しいスコープバージョンを保存
             UserDefaults.standard.set(currentScopeVersion, forKey: "scopeVersion")

@@ -19,6 +19,7 @@ class GoogleAuthService {
         static let accessToken = "accessToken"
         static let refreshToken = "refreshToken"
         static let userEmail = "userEmail"
+        static let tokenExpiry = "tokenExpiry"
     }
     
     private init() {}
@@ -89,12 +90,17 @@ class GoogleAuthService {
     }
     
     func getAccessToken(completion: @escaping (Result<String, Error>) -> Void) {
-        if let token = defaults.string(forKey: Keys.accessToken) {
+        // 有効期限チェック
+        let expiry = defaults.double(forKey: Keys.tokenExpiry)
+        let now = Date().timeIntervalSince1970
+        
+        // トークンがあり、有効期限内ならそのまま返す（5分の余裕を持たせる）
+        if let token = defaults.string(forKey: Keys.accessToken), expiry > now + 300 {
             completion(.success(token))
             return
         }
         
-        // Try refresh
+        // 期限切れまたはトークンなし → リフレッシュ
         if let refreshToken = defaults.string(forKey: Keys.refreshToken) {
             refreshAccessToken(refreshToken: refreshToken, completion: completion)
             return
@@ -161,6 +167,9 @@ class GoogleAuthService {
                 if let refreshToken = tokenResponse.refreshToken {
                     self?.defaults.set(refreshToken, forKey: Keys.refreshToken)
                 }
+                // 有効期限を保存（現在時刻 + expiresIn秒）
+                let expiry = Date().timeIntervalSince1970 + Double(tokenResponse.expiresIn)
+                self?.defaults.set(expiry, forKey: Keys.tokenExpiry)
                 
                 // Fetch user email, then complete
                 self?.fetchUserEmail(accessToken: tokenResponse.accessToken) {
@@ -206,7 +215,9 @@ class GoogleAuthService {
             do {
                 let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
                 self?.defaults.set(tokenResponse.accessToken, forKey: Keys.accessToken)
-                
+                // 有効期限を保存
+                let expiry = Date().timeIntervalSince1970 + Double(tokenResponse.expiresIn)
+                self?.defaults.set(expiry, forKey: Keys.tokenExpiry)
                 DispatchQueue.main.async {
                     completion(.success(tokenResponse.accessToken))
                 }

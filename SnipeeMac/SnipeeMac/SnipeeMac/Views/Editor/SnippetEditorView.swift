@@ -29,6 +29,7 @@ struct SnippetEditorView: View {
     @State private var isLoadingOtherDepartment = false
     @State private var isViewingOtherDepartment = false
     @State private var saveRequestId: Int = 0
+    @State private var isSidebarFocused: Bool = true
 
     private let theme: ColorTheme = .silver
     
@@ -38,14 +39,8 @@ struct SnippetEditorView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            editorToolbar
-            
-            Divider()
-            
-            mainContent
-        }
-        .frame(minWidth: 700, minHeight: 500)
+        mainContent
+            .frame(minWidth: 700, minHeight: 500)
         .onAppear {
             loadData()
             loadAdminStatus()
@@ -78,37 +73,65 @@ struct SnippetEditorView: View {
         }
         .background(KeyboardHandler(
             onUpArrow: selectPreviousSnippet,
-            onDownArrow: selectNextSnippet
+            onDownArrow: selectNextSnippet,
+            onRightArrow: { focusContentPanel() },
+            onEscape: { focusSidebar() },
+            isSidebarFocused: isSidebarFocused
         ))
     }
 
     // MARK: - Keyboard Navigation
 
+    private func buildFlatSnippetList() -> [(folderId: String, snippetId: String, isMaster: Bool)] {
+        var list: [(folderId: String, snippetId: String, isMaster: Bool)] = []
+        
+        if !isViewingOtherDepartment {
+            for folder in personalFolders {
+                for snippet in folder.snippets {
+                    list.append((folder.id, snippet.id, false))
+                }
+            }
+        }
+        
+        let masters = isViewingOtherDepartment ? otherDepartmentFolders : masterFolders
+        for folder in masters {
+            for snippet in folder.snippets {
+                list.append((folder.id, snippet.id, true))
+            }
+        }
+        
+        return list
+    }
+    
     private func selectPreviousSnippet() {
-        let folders = isShowingMaster ? masterFolders : personalFolders
-        guard let currentFolderId = selectedFolderId,
-              let folderIndex = folders.firstIndex(where: { $0.id == currentFolderId }) else { return }
-
-        let snippets = folders[folderIndex].snippets
-        guard let currentSnippetId = selectedSnippetId,
-              let currentIndex = snippets.firstIndex(where: { $0.id == currentSnippetId }) else { return }
-
+        let list = buildFlatSnippetList()
+        guard let currentIndex = list.firstIndex(where: { $0.snippetId == selectedSnippetId }) else { return }
+        
         if currentIndex > 0 {
-            selectedSnippetId = snippets[currentIndex - 1].id
+            let prev = list[currentIndex - 1]
+            selectedFolderId = prev.folderId
+            selectedSnippetId = prev.snippetId
+            isShowingMaster = prev.isMaster
         }
     }
 
+    private func focusContentPanel() {
+        isSidebarFocused = false
+    }
+    
+    private func focusSidebar() {
+        isSidebarFocused = true
+    }
+    
     private func selectNextSnippet() {
-        let folders = isShowingMaster ? masterFolders : personalFolders
-        guard let currentFolderId = selectedFolderId,
-              let folderIndex = folders.firstIndex(where: { $0.id == currentFolderId }) else { return }
-
-        let snippets = folders[folderIndex].snippets
-        guard let currentSnippetId = selectedSnippetId,
-              let currentIndex = snippets.firstIndex(where: { $0.id == currentSnippetId }) else { return }
-
-        if currentIndex < snippets.count - 1 {
-            selectedSnippetId = snippets[currentIndex + 1].id
+        let list = buildFlatSnippetList()
+        guard let currentIndex = list.firstIndex(where: { $0.snippetId == selectedSnippetId }) else { return }
+        
+        if currentIndex < list.count - 1 {
+            let next = list[currentIndex + 1]
+            selectedFolderId = next.folderId
+            selectedSnippetId = next.snippetId
+            isShowingMaster = next.isMaster
         }
     }
     
@@ -117,7 +140,13 @@ struct SnippetEditorView: View {
     private var mainContent: some View {
         HSplitView {
             sidebarView
-            contentPanelView
+                .background(isSidebarFocused ? Color.accentColor.opacity(0.05) : Color.clear)
+            
+            VStack(spacing: 0) {
+                editorToolbar
+                Divider()
+                contentPanelView
+            }
         }
     }
     
@@ -163,7 +192,6 @@ struct SnippetEditorView: View {
             onAddSnippet: { if !isViewingOtherDepartment { isAddingSnippet = true } },
             saveRequestId: $saveRequestId
         )
-        .id("content-\(isViewingOtherDepartment)-\(isShowingMaster)")
         .frame(minWidth: 400)
     }
     
@@ -312,14 +340,11 @@ struct SnippetEditorView: View {
     
     private func loadOtherDepartmentSnippets() {
         guard let dept = selectedOtherDepartment else {
-            print("⚠️ loadOtherDepartmentSnippets - no department selected")
             return
         }
-        print("🏢 loadOtherDepartmentSnippets - dept: \(dept.name), fileId: \(dept.fileId)")
         isLoadingOtherDepartment = true
-        
+
         GoogleDriveService.shared.downloadXMLFile(fileId: dept.fileId) { result in
-            print("📥 downloadXMLFile result received")
             DispatchQueue.main.async {
                 isLoadingOtherDepartment = false
                 switch result {
@@ -356,8 +381,12 @@ struct SnippetEditorView: View {
     }
     
     private func saveData() {
-        StorageService.shared.savePersonalSnippets(personalFolders)
-        StorageService.shared.saveMasterSnippets(masterFolders)
+        let personal = personalFolders
+        let master = masterFolders
+        DispatchQueue.global(qos: .utility).async {
+            StorageService.shared.savePersonalSnippets(personal)
+            StorageService.shared.saveMasterSnippets(master)
+        }
     }
     
     private func addSnippet(title: String, content: String) {
@@ -621,8 +650,8 @@ struct SnippetEditorView: View {
     
     private func handleExport(_ result: Result<URL, Error>) {
         switch result {
-        case .success(let url):
-            print("Exported to: \(url)")
+        case .success:
+            break
         case .failure(let error):
             print("Export failed: \(error)")
         }
@@ -703,11 +732,17 @@ struct AddSnippetSheet: View {
 struct KeyboardHandler: NSViewRepresentable {
     let onUpArrow: () -> Void
     let onDownArrow: () -> Void
+    let onRightArrow: () -> Void
+    let onEscape: () -> Void
+    var isSidebarFocused: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = KeyboardMonitorView()
         view.onUpArrow = onUpArrow
         view.onDownArrow = onDownArrow
+        view.onRightArrow = onRightArrow
+        view.onEscape = onEscape
+        view.isSidebarFocused = isSidebarFocused
         return view
     }
 
@@ -715,6 +750,9 @@ struct KeyboardHandler: NSViewRepresentable {
         if let view = nsView as? KeyboardMonitorView {
             view.onUpArrow = onUpArrow
             view.onDownArrow = onDownArrow
+            view.onRightArrow = onRightArrow
+            view.onEscape = onEscape
+            view.isSidebarFocused = isSidebarFocused
         }
     }
 }
@@ -722,26 +760,38 @@ struct KeyboardHandler: NSViewRepresentable {
 class KeyboardMonitorView: NSView {
     var onUpArrow: (() -> Void)?
     var onDownArrow: (() -> Void)?
+    var onRightArrow: (() -> Void)?
+    var onEscape: (() -> Void)?
+    var isSidebarFocused: Bool = true
     private var monitor: Any?
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window != nil && monitor == nil {
             monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                // Command+上下キーでスニペット切り替え
-                if event.modifierFlags.contains(.command) {
+                guard let self = self else { return event }
+                
+                if self.isSidebarFocused {
                     switch event.keyCode {
                     case 126: // Up
-                        self?.onUpArrow?()
+                        self.onUpArrow?()
                         return nil
                     case 125: // Down
-                        self?.onDownArrow?()
+                        self.onDownArrow?()
+                        return nil
+                    case 124: // Right
+                        self.onRightArrow?()
                         return nil
                     default:
-                        break
+                        return event
                     }
+                } else {
+                    if event.keyCode == 53 { // Esc
+                        self.onEscape?()
+                        return nil
+                    }
+                    return event
                 }
-                return event
             }
         }
     }
