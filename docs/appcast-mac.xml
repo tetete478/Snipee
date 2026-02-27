@@ -3,12 +3,12 @@
   <channel>
     <title>Snipee Mac Updates</title>
     <item>
-      <title>Snipee 2.0.5</title>
+      <title>Version 2.0.5</title>
+      <pubDate>Fri, 27 Feb 2026 04:30:59 +0000</pubDate>
       <sparkle:version>2.0.5</sparkle:version>
       <sparkle:shortVersionString>2.0.5</sparkle:shortVersionString>
-      <pubDate>Thu, 27 Feb 2026 12:00:00 +0900</pubDate>
-      <enclosure url="https://github.com/tetete478/Snipee/releases/download/mac-v2.0.5/Snipee-Swift-2.0.5.dmg"
-                type="application/octet-stream"/>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/tetete478/Snipee/releases/download/mac-v2.0.5/Snipee-Swift-2.0.5.dmg" type="application/octet-stream" length="0" />
     </item>
   </channel>
 </rss>
