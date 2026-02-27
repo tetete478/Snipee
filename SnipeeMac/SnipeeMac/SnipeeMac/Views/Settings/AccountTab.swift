@@ -208,8 +208,8 @@ struct AccountTab: View {
                 checkLoginStatus()
                 // Fetch member info immediately
                 fetchMemberInfoOnly()
-            case .failure(let error):
-                print("Login failed: \(error.localizedDescription)")
+            case .failure:
+                break
             }
         }
     }
@@ -242,6 +242,8 @@ struct AccountTab: View {
         userName = ""
         userRole = ""
         userDepartment = ""
+        
+        NotificationCenter.default.post(name: NSNotification.Name("userDidLogout"), object: nil)
     }
     
     private func syncNow() {

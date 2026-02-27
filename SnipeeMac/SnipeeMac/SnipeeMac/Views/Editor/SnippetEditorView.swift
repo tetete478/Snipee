@@ -23,19 +23,24 @@ struct SnippetEditorView: View {
     @State private var showAlert: Bool = false
     @State private var isAdmin: Bool = false
     @State private var userDepartment: String = ""
-    @State private var allDepartments: [DepartmentInfo] = []
-    @State private var selectedOtherDepartment: DepartmentInfo?
-    @State private var otherDepartmentFolders: [SnippetFolder] = []
-    @State private var isLoadingOtherDepartment = false
-    @State private var isViewingOtherDepartment = false
     @State private var saveRequestId: Int = 0
-    @State private var isSidebarFocused: Bool = true
+    
+    // Export Sheet States
+    @State private var isShowingExportSheet: Bool = false
+    @State private var exportSheetType: ImportExportTarget? = nil
+    @State private var selectedExportFolders: Set<String> = []
+    @State private var exportFormat: ExportFormat = .snipee
 
     private let theme: ColorTheme = .silver
     
     enum ImportExportTarget {
         case personal
         case master
+    }
+    
+    enum ExportFormat {
+        case snipee
+        case clipy
     }
     
     var body: some View {
@@ -52,14 +57,7 @@ struct SnippetEditorView: View {
         ) { result in
             handleImport(result)
         }
-        .fileExporter(
-            isPresented: $isExporting,
-            document: SnippetXMLDocument(folders: exportTarget == .master ? masterFolders : personalFolders),
-            contentType: .xml,
-            defaultFilename: exportTarget == .master ? "master-snippets.xml" : "personal-snippets.xml"
-        ) { result in
-            handleExport(result)
-        }
+        
         .alert("通知", isPresented: $showAlert) {
             Button("OK") { }
         } message: {
@@ -71,76 +69,28 @@ struct SnippetEditorView: View {
                 onCancel: { isAddingSnippet = false }
             )
         }
-        .background(KeyboardHandler(
-            onUpArrow: selectPreviousSnippet,
-            onDownArrow: selectNextSnippet,
-            onRightArrow: { focusContentPanel() },
-            onEscape: { focusSidebar() },
-            isSidebarFocused: isSidebarFocused
-        ))
-    }
-
-    // MARK: - Keyboard Navigation
-
-    private func buildFlatSnippetList() -> [(folderId: String, snippetId: String, isMaster: Bool)] {
-        var list: [(folderId: String, snippetId: String, isMaster: Bool)] = []
-        
-        if !isViewingOtherDepartment {
-            for folder in personalFolders {
-                for snippet in folder.snippets {
-                    list.append((folder.id, snippet.id, false))
-                }
-            }
-        }
-        
-        let masters = isViewingOtherDepartment ? otherDepartmentFolders : masterFolders
-        for folder in masters {
-            for snippet in folder.snippets {
-                list.append((folder.id, snippet.id, true))
-            }
-        }
-        
-        return list
-    }
-    
-    private func selectPreviousSnippet() {
-        let list = buildFlatSnippetList()
-        guard let currentIndex = list.firstIndex(where: { $0.snippetId == selectedSnippetId }) else { return }
-        
-        if currentIndex > 0 {
-            let prev = list[currentIndex - 1]
-            selectedFolderId = prev.folderId
-            selectedSnippetId = prev.snippetId
-            isShowingMaster = prev.isMaster
+        .sheet(isPresented: $isShowingExportSheet) {
+            ExportSheet(
+                selectedType: $exportSheetType,
+                selectedFolders: $selectedExportFolders,
+                exportFormat: $exportFormat,
+                personalFolders: personalFolders,
+                masterFolders: masterFolders,
+                isAdmin: isAdmin,
+                onExport: { selectedFolders in
+                    performExport(selectedFolders: selectedFolders, selectedType: $exportSheetType.wrappedValue)
+                },
+                onCancel: { isShowingExportSheet = false }
+            )
         }
     }
 
-    private func focusContentPanel() {
-        isSidebarFocused = false
-    }
-    
-    private func focusSidebar() {
-        isSidebarFocused = true
-    }
-    
-    private func selectNextSnippet() {
-        let list = buildFlatSnippetList()
-        guard let currentIndex = list.firstIndex(where: { $0.snippetId == selectedSnippetId }) else { return }
-        
-        if currentIndex < list.count - 1 {
-            let next = list[currentIndex + 1]
-            selectedFolderId = next.folderId
-            selectedSnippetId = next.snippetId
-            isShowingMaster = next.isMaster
-        }
-    }
     
     // MARK: - Main Content
     
     private var mainContent: some View {
         HSplitView {
             sidebarView
-                .background(isSidebarFocused ? Color.accentColor.opacity(0.05) : Color.clear)
             
             VStack(spacing: 0) {
                 editorToolbar
@@ -158,7 +108,7 @@ struct SnippetEditorView: View {
             selectedSnippetId: $selectedSnippetId,
             isShowingMaster: $isShowingMaster,
             isAdmin: isAdmin,
-            isReadOnly: isViewingOtherDepartment,
+            isReadOnly: false,
             onSave: saveData,
             onPromoteSnippet: promoteSnippetToMaster,
             onDemoteSnippet: demoteSnippetToPersonal,
@@ -169,12 +119,12 @@ struct SnippetEditorView: View {
     }
     
     private var currentMasterFolders: Binding<[SnippetFolder]> {
-        isViewingOtherDepartment ? $otherDepartmentFolders : $masterFolders
+        $masterFolders
     }
     
     private var currentContentFolders: Binding<[SnippetFolder]> {
         if isShowingMaster {
-            return isViewingOtherDepartment ? $otherDepartmentFolders : $masterFolders
+            return $masterFolders
         } else {
             return $personalFolders
         }
@@ -186,10 +136,10 @@ struct SnippetEditorView: View {
             selectedFolderId: $selectedFolderId,
             selectedSnippetId: $selectedSnippetId,
             isShowingMaster: isShowingMaster,
-            isReadOnly: isViewingOtherDepartment,
+            isReadOnly: false,
             isAdmin: isAdmin,
-            onSave: { if !isViewingOtherDepartment { saveData() } },
-            onAddSnippet: { if !isViewingOtherDepartment { isAddingSnippet = true } },
+            onSave: { saveData() },
+            onAddSnippet: { isAddingSnippet = true },
             saveRequestId: $saveRequestId
         )
         .frame(minWidth: 400)
@@ -201,25 +151,18 @@ struct SnippetEditorView: View {
         HStack {
             Spacer()
             
-            if isViewingOtherDepartment {
-                Button(action: closeOtherDepartmentView) {
-                    HStack(spacing: 4) {
-                        Text(selectedOtherDepartment?.name ?? "")
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
-                .foregroundColor(.orange)
-            }
-            
             Button(action: { syncSnippets() }) {
                 Label("同期", systemImage: "arrow.triangle.2.circlepath")
             }
             
             importMenu
-            exportMenu
             
-            if isAdmin && !isViewingOtherDepartment {
-            otherDepartmentMenu
+            Button(action: { isShowingExportSheet = true }) {
+                Label("エクスポート", systemImage: "square.and.arrow.up")
+            }
+            .disabled(personalFolders.isEmpty && masterFolders.isEmpty)
+            
+            if isAdmin {
             
             Button(action: uploadMasterSnippets) {
                 Label("マスタ更新", systemImage: "icloud.and.arrow.up")
@@ -234,19 +177,6 @@ struct SnippetEditorView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(.windowBackgroundColor))
-    }
-    
-    private var otherDepartmentMenu: some View {
-        Menu {
-            ForEach(allDepartments.filter { $0.name != userDepartment }, id: \.name) { dept in
-                Button(dept.name) {
-                    selectedOtherDepartment = dept
-                    loadOtherDepartmentSnippets()
-                }
-            }
-        } label: {
-            Label("他部署マスタ", systemImage: "building.2")
-        }
     }
     
     private var importMenu: some View {
@@ -267,26 +197,6 @@ struct SnippetEditorView: View {
         .help("XMLファイルを読み込む")
     }
     
-    private var exportMenu: some View {
-        Menu {
-            Button("個別スニペット") {
-                exportTarget = .personal
-                isExporting = true
-            }
-            .disabled(personalFolders.isEmpty)
-            if isAdmin {
-                Button("マスタスニペット") {
-                    exportTarget = .master
-                    isExporting = true
-                }
-                .disabled(masterFolders.isEmpty)
-            }
-        } label: {
-            Label("エクスポート", systemImage: "square.and.arrow.up")
-        }
-        .help("XMLファイルに書き出す")
-    }
-    
     // MARK: - Data Loading
     
     private func loadData() {
@@ -304,80 +214,18 @@ struct SnippetEditorView: View {
     private func loadAdminStatus() {
         let cached = SyncService.shared.getCachedMemberInfo()
         
-        // キャッシュが空なら再取得
         if cached.role == nil || cached.department == nil {
             SyncService.shared.refreshMemberInfo {
                 let refreshed = SyncService.shared.getCachedMemberInfo()
                 let role = refreshed.role ?? ""
                 self.userDepartment = refreshed.department ?? ""
                 self.isAdmin = (role == "最高管理者" || role == "管理者")
-                
-                if self.isAdmin {
-                    self.loadAllDepartments()
-                }
             }
         } else {
             let role = cached.role ?? ""
             userDepartment = cached.department ?? ""
             isAdmin = (role == "最高管理者" || role == "管理者")
-            
-            if isAdmin {
-                loadAllDepartments()
-            }
         }
-    }
-    
-    private func loadAllDepartments() {
-        GoogleSheetsService.shared.fetchAllDepartments { result in
-            switch result {
-            case .success(let departments):
-                allDepartments = departments
-            case .failure(let error):
-                print("Failed to load departments: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    private func loadOtherDepartmentSnippets() {
-        guard let dept = selectedOtherDepartment else {
-            return
-        }
-        isLoadingOtherDepartment = true
-
-        GoogleDriveService.shared.downloadXMLFile(fileId: dept.fileId) { result in
-            DispatchQueue.main.async {
-                isLoadingOtherDepartment = false
-                switch result {
-                case .success(let data):
-                    let parser = XMLParserHelper()
-                    otherDepartmentFolders = parser.parse(data: data)
-                    
-                    // 先にフラグを設定
-                    isShowingMaster = true
-                    isViewingOtherDepartment = true
-                    
-                    // その後でIDを設定
-                    if let firstFolder = otherDepartmentFolders.first {
-                        selectedFolderId = firstFolder.id
-                        if let firstSnippet = firstFolder.snippets.first {
-                            selectedSnippetId = firstSnippet.id
-                        }
-                    }
-                    
-                    alertMessage = "読み込み完了: \(otherDepartmentFolders.count)フォルダ"
-                    showAlert = true
-                case .failure(let error):
-                    alertMessage = "読み込みに失敗しました: \(error.localizedDescription)"
-                    showAlert = true
-                }
-            }
-        }
-    }
-    
-    private func closeOtherDepartmentView() {
-        isViewingOtherDepartment = false
-        selectedOtherDepartment = nil
-        otherDepartmentFolders = []
     }
     
     private func saveData() {
@@ -550,8 +398,8 @@ struct SnippetEditorView: View {
                 alertMessage = "インポートに失敗しました: \(error.localizedDescription)"
                 showAlert = true
             }
-        case .failure(let error):
-            print("Import failed: \(error)")
+        case .failure:
+            break
         }
     }
     
@@ -648,17 +496,119 @@ struct SnippetEditorView: View {
         showAlert = true
     }
     
-    private func handleExport(_ result: Result<URL, Error>) {
-        switch result {
-        case .success:
-            break
-        case .failure(let error):
-            print("Export failed: \(error)")
+    private func performExport(selectedFolders: Set<String>, selectedType: ImportExportTarget?) {
+        let foldersToExport: [SnippetFolder]
+        
+        if selectedType == .master {
+            foldersToExport = masterFolders.filter { selectedFolders.contains($0.id) }
+        } else {
+            foldersToExport = personalFolders.filter { selectedFolders.contains($0.id) }
+        }
+        
+        if foldersToExport.isEmpty {
+            alertMessage = "フォルダが選択されていません"
+            showAlert = true
+            return
+        }
+        
+        // エクスポートするフォルダのXMLを生成してDownloadsに保存
+        let xmlString = exportFormat == .clipy
+            ? XMLParserHelper.exportClipyXML(folders: foldersToExport)
+            : XMLParserHelper.exportSnipeeXML(folders: foldersToExport)
+        
+        let typeString = selectedType == .master ? "master" : "personal"
+        let formatString = exportFormat == .snipee ? "snipee" : "clipy"
+        let filename = "\(typeString)-snippets-\(formatString).xml"
+        
+        let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        let fileURL = downloadsURL.appendingPathComponent(filename)
+        
+        do {
+            try xmlString.write(to: fileURL, atomically: true, encoding: .utf8)
+            isShowingExportSheet = false
+            alertMessage = "エクスポート完了: Downloads/\(filename)"
+            showAlert = true
+        } catch {
+            alertMessage = "エクスポートに失敗しました: \(error.localizedDescription)"
+            showAlert = true
         }
     }
     
+    private func handleExport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            alertMessage = "エクスポート完了: \(url.lastPathComponent)"
+            showAlert = true
+        case .failure(let error):
+            alertMessage = "エクスポートに失敗しました: \(error.localizedDescription)"
+            showAlert = true
+        }
+    }
+    
+    private func createExportDocument() -> SnippetXMLDocument {
+        let foldersToExport: [SnippetFolder]
+        
+        if exportFormat == .clipy {
+            if exportTarget == .master {
+                let filtered = masterFolders.filter { selectedExportFolders.contains($0.id) }
+                foldersToExport = filtered.map { folder in
+                    SnippetFolder(
+                        id: folder.id,
+                        name: folder.name,
+                        snippets: folder.snippets.map { snippet in
+                            Snippet(
+                                id: snippet.id,
+                                title: snippet.title,
+                                content: snippet.content,
+                                folder: snippet.folder,
+                                type: snippet.type,
+                                description: "",
+                                order: snippet.order
+                            )
+                        },
+                        order: folder.order
+                    )
+                }
+            } else {
+                let filtered = personalFolders.filter { selectedExportFolders.contains($0.id) }
+                foldersToExport = filtered.map { folder in
+                    SnippetFolder(
+                        id: folder.id,
+                        name: folder.name,
+                        snippets: folder.snippets.map { snippet in
+                            Snippet(
+                                id: snippet.id,
+                                title: snippet.title,
+                                content: snippet.content,
+                                folder: snippet.folder,
+                                type: snippet.type,
+                                description: "",
+                                order: snippet.order
+                            )
+                        },
+                        order: folder.order
+                    )
+                }
+            }
+        } else {
+            if exportTarget == .master {
+                foldersToExport = masterFolders.filter { selectedExportFolders.contains($0.id) }
+            } else {
+                foldersToExport = personalFolders.filter { selectedExportFolders.contains($0.id) }
+            }
+        }
+        
+        return SnippetXMLDocument(folders: foldersToExport)
+    }
+    
+    private func generateExportFilename() -> String {
+        let typeString = exportTarget == .master ? "master" : "personal"
+        let formatString = exportFormat == .snipee ? "snipee" : "clipy"
+        return "\(typeString)-snippets-\(formatString).xml"
+    }
+    
     private func syncSnippets() {
-        saveRequestId += 1  // 即時保存をトリガー
+        saveRequestId += 1
         SyncService.shared.syncMasterSnippets { success in
             DispatchQueue.main.async {
                 masterFolders = StorageService.shared.getMasterSnippets()
@@ -667,7 +617,7 @@ struct SnippetEditorView: View {
     }
     
     private func uploadMasterSnippets() {
-        saveRequestId += 1  // 即時保存をトリガー
+        saveRequestId += 1
         isUploading = true
         SyncService.shared.uploadMasterSnippets(folders: masterFolders) { result in
             DispatchQueue.main.async {
@@ -681,6 +631,175 @@ struct SnippetEditorView: View {
                     showAlert = true
                 }
             }
+        }
+    }
+}
+
+// MARK: - Export Sheet
+
+struct ExportSheet: View {
+    @Binding var selectedType: SnippetEditorView.ImportExportTarget?
+    @Binding var selectedFolders: Set<String>
+    @Binding var exportFormat: SnippetEditorView.ExportFormat
+    
+    let personalFolders: [SnippetFolder]
+    let masterFolders: [SnippetFolder]
+    let isAdmin: Bool
+    var onExport: (Set<String>) -> Void
+    var onCancel: () -> Void
+    
+    @State private var localSelectedType: SnippetEditorView.ImportExportTarget? = nil
+    @State private var localSelectedFolders: Set<String> = []
+    @State private var localExportFormat: SnippetEditorView.ExportFormat = .snipee
+    
+    var currentFolders: [SnippetFolder] {
+        localSelectedType == .master ? masterFolders : personalFolders
+    }
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("エクスポート")
+                .font(.headline)
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text("スニペットタイプを選択:")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                HStack(spacing: 12) {
+                    Button(action: { localSelectedType = .personal }) {
+                        Text("個別")
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(localSelectedType == .personal ? Color.blue : Color.gray.opacity(0.2))
+                            .foregroundColor(localSelectedType == .personal ? .white : .primary)
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    if isAdmin {
+                        Button(action: { localSelectedType = .master }) {
+                            Text("マスタ")
+                                .frame(maxWidth: .infinity)
+                                .padding(8)
+                                .background(localSelectedType == .master ? Color.blue : Color.gray.opacity(0.2))
+                                .foregroundColor(localSelectedType == .master ? .white : .primary)
+                                .cornerRadius(6)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            
+            Divider()
+            
+            if !currentFolders.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("フォルダを選択:")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(currentFolders, id: \.id) { folder in
+                                HStack {
+                                    Image(systemName: localSelectedFolders.contains(folder.id) ? "checkmark.square.fill" : "square")
+                                        .foregroundColor(localSelectedFolders.contains(folder.id) ? .blue : .gray)
+                                    
+                                    Text(folder.name)
+                                        .font(.body)
+                                    
+                                    Text("(\(folder.snippets.count))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if localSelectedFolders.contains(folder.id) {
+                                        localSelectedFolders.remove(folder.id)
+                                    } else {
+                                        localSelectedFolders.insert(folder.id)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .frame(height: 120)
+                    .background(Color(.textBackgroundColor))
+                    .border(Color.gray.opacity(0.3))
+                }
+            } else {
+                Text("選択可能なフォルダがありません")
+                    .foregroundColor(.secondary)
+            }
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text("エクスポート形式:")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                HStack(spacing: 12) {
+                    Button(action: { localExportFormat = .snipee }) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Snipeeに取り込む場合")
+                                .font(.body)
+                                .fontWeight(.semibold)
+                            Text("Description情報を含む")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(localExportFormat == .snipee ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1))
+                        .border(localExportFormat == .snipee ? Color.blue : Color.gray.opacity(0.3), width: 1)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { localExportFormat = .clipy }) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Clipyに取り込む場合")
+                                .font(.body)
+                                .fontWeight(.semibold)
+                            Text("Clipy互換形式（XML）")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(localExportFormat == .clipy ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1))
+                        .border(localExportFormat == .clipy ? Color.blue : Color.gray.opacity(0.3), width: 1)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 12) {
+                Button("キャンセル", action: onCancel)
+                    .keyboardShortcut(.escape)
+                
+                Button("エクスポート") {
+                    selectedType = localSelectedType
+                    exportFormat = localExportFormat
+                    onExport(localSelectedFolders)
+                }
+                .keyboardShortcut(.return)
+                .disabled(localSelectedType == nil || localSelectedFolders.isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 480, height: 480)
+        .background(Color(.windowBackgroundColor))
+        .onAppear {
+            localSelectedType = selectedType ?? .personal
         }
     }
 }
@@ -705,7 +824,7 @@ struct AddSnippetSheet: View {
             
             TextEditor(text: $content)
                 .font(.system(.body, design: .monospaced))
-                .frame(height: 150)
+                .frame(height: 120)
                 .scrollContentBackground(.hidden)
                 .background(Color(.textBackgroundColor))
                 .border(Color(.separatorColor))
@@ -724,89 +843,5 @@ struct AddSnippetSheet: View {
         .padding()
         .frame(width: 400, height: 300)
         .background(Color(.windowBackgroundColor))
-    }
-}
-
-// MARK: - Keyboard Handler
-
-struct KeyboardHandler: NSViewRepresentable {
-    let onUpArrow: () -> Void
-    let onDownArrow: () -> Void
-    let onRightArrow: () -> Void
-    let onEscape: () -> Void
-    var isSidebarFocused: Bool
-
-    func makeNSView(context: Context) -> NSView {
-        let view = KeyboardMonitorView()
-        view.onUpArrow = onUpArrow
-        view.onDownArrow = onDownArrow
-        view.onRightArrow = onRightArrow
-        view.onEscape = onEscape
-        view.isSidebarFocused = isSidebarFocused
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let view = nsView as? KeyboardMonitorView {
-            view.onUpArrow = onUpArrow
-            view.onDownArrow = onDownArrow
-            view.onRightArrow = onRightArrow
-            view.onEscape = onEscape
-            view.isSidebarFocused = isSidebarFocused
-        }
-    }
-}
-
-class KeyboardMonitorView: NSView {
-    var onUpArrow: (() -> Void)?
-    var onDownArrow: (() -> Void)?
-    var onRightArrow: (() -> Void)?
-    var onEscape: (() -> Void)?
-    var isSidebarFocused: Bool = true
-    private var monitor: Any?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil && monitor == nil {
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                guard let self = self else { return event }
-                
-                if self.isSidebarFocused {
-                    switch event.keyCode {
-                    case 126: // Up
-                        self.onUpArrow?()
-                        return nil
-                    case 125: // Down
-                        self.onDownArrow?()
-                        return nil
-                    case 124: // Right
-                        self.onRightArrow?()
-                        return nil
-                    default:
-                        return event
-                    }
-                } else {
-                    if event.keyCode == 53 { // Esc
-                        self.onEscape?()
-                        return nil
-                    }
-                    return event
-                }
-            }
-        }
-    }
-
-    override func removeFromSuperview() {
-        if let monitor = monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
-        super.removeFromSuperview()
-    }
-
-    deinit {
-        if let monitor = monitor {
-            NSEvent.removeMonitor(monitor)
-        }
     }
 }

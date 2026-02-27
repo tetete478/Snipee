@@ -96,6 +96,10 @@ class PopupWindowController: NSObject {
         submenuWindow?.isVisible ?? false
     }
     
+    var isPopupVisible: Bool {
+        window?.isVisible ?? false
+    }
+    
     private func createSubmenuWindow() {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: Constants.UI.submenuWidth, height: Constants.UI.submenuMaxHeight),

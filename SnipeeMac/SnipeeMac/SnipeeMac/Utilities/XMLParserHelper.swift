@@ -72,6 +72,36 @@ class XMLParserHelper: NSObject, XMLParserDelegate {
     
     // MARK: - Export to XML
     
+    // Snipee形式（description含む）
+    static func exportSnipeeXML(folders: [SnippetFolder]) -> String {
+        return export(folders: folders)
+    }
+    
+    // Clipy互換形式（<snippets>ラッパーあり、description除外）
+    static func exportClipyXML(folders: [SnippetFolder]) -> String {
+        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        xml += "<folders>\n"
+        
+        for folder in folders {
+            xml += "  <folder>\n"
+            xml += "    <title>\(escapeXML(folder.name))</title>\n"
+            xml += "    <snippets>\n"
+            
+            for snippet in folder.snippets {
+                xml += "      <snippet>\n"
+                xml += "        <title>\(escapeXML(snippet.title))</title>\n"
+                xml += "        <content>\(escapeXML(snippet.content))</content>\n"
+                xml += "      </snippet>\n"
+            }
+            
+            xml += "    </snippets>\n"
+            xml += "  </folder>\n"
+        }
+        
+        xml += "</folders>"
+        return xml
+    }
+    
     static func export(folders: [SnippetFolder]) -> String {
         var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         xml += "<snippets>\n"

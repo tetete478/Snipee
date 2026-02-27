@@ -215,9 +215,6 @@ class GoogleDriveService {
             
             if let httpResponse = response as? HTTPURLResponse {
                 if httpResponse.statusCode != 200 {
-                    if let data = data, let errorStr = String(data: data, encoding: .utf8) {
-                        print("❌ [Drive] searchFile error response: \(errorStr)")
-                    }
                     DispatchQueue.main.async { completion(.failure(DriveError.searchFailed)) }
                     return
                 }

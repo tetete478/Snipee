@@ -34,6 +34,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         setupHotkeys()
         startServices()
         setupAutoSync()
+        setupLogoutNotification()
         
         // Show welcome wizard if not completed
         if !UserDefaults.standard.bool(forKey: "welcomeCompleted") {
@@ -125,6 +126,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
     
     private var settingsWindow: NSWindow?
+    private var loginRequiredWindow: NSWindow?
     
     @objc private func openSettings() {
         if let existingWindow = settingsWindow, existingWindow.isVisible {
@@ -164,6 +166,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     // MARK: - Login Required Window
         
     private func showLoginRequiredWindow() {
+        // 既に表示中なら新規作成しない
+        if let existingWindow = loginRequiredWindow, existingWindow.isVisible {
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
         let loginView = LoginRequiredView()
         let hostingController = NSHostingController(rootView: loginView)
         
@@ -171,13 +180,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         loginWindow.title = "ログインが必要です"
         loginWindow.styleMask = [.titled, .fullSizeContentView]
         Constants.UI.configureModalWindow(loginWindow)
+        
+        loginRequiredWindow = loginWindow
     }
     
     // MARK: - Hotkeys
     
     private func setupHotkeys() {
-        hotkeyService.onMainHotkey = {
-            guard GoogleAuthService.shared.isLoggedIn else { return }
+        hotkeyService.onMainHotkey = { [weak self] in
+            if !GoogleAuthService.shared.isLoggedIn {
+                self?.showLoginRequiredWindow()
+                return
+            }
             if NSApp.windows.contains(where: { $0.isVisible && $0 is NSPanel }) {
                 PopupWindowController.shared.hidePopup()
             } else {
@@ -186,8 +200,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             }
         }
         
-        hotkeyService.onSnippetHotkey = {
-            guard GoogleAuthService.shared.isLoggedIn else { return }
+        hotkeyService.onSnippetHotkey = { [weak self] in
+            if !GoogleAuthService.shared.isLoggedIn {
+                self?.showLoginRequiredWindow()
+                return
+            }
             if PopupWindowController.shared.isVisible(type: .snippet) {
                 PopupWindowController.shared.hidePopup()
             } else {
@@ -196,8 +213,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             }
         }
 
-        hotkeyService.onHistoryHotkey = {
-            guard GoogleAuthService.shared.isLoggedIn else { return }
+        hotkeyService.onHistoryHotkey = { [weak self] in
+            if !GoogleAuthService.shared.isLoggedIn {
+                self?.showLoginRequiredWindow()
+                return
+            }
             if PopupWindowController.shared.isVisible(type: .history) {
                 PopupWindowController.shared.hidePopup()
             } else {
@@ -253,12 +273,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             switch result {
             case .success:
                 break
-            case .failure(let error):
-                print("個別スニペット同期失敗: \(error.localizedDescription)")
+            case .failure:
+                break
             }
         }
     }
     
+    
+    // MARK: - Logout Notification
+    
+    private func setupLogoutNotification() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleUserLogout),
+            name: NSNotification.Name("userDidLogout"),
+            object: nil
+        )
+    }
+    
+    @objc private func handleUserLogout() {
+        SnippetEditorWindow.shared.close()
+        PopupWindowController.shared.hidePopup()
+        settingsWindow?.close()
+        settingsWindow = nil
+        loginRequiredWindow?.close()
+        loginRequiredWindow = nil
+    }
     
     // MARK: - Scope Version Check
         

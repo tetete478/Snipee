@@ -12,8 +12,8 @@
 	"argv": [
 		"/opt/homebrew/bin/xcode-build-server"
 	],
-	"workspace": "/Users/tetetemac/Desktop/Snipee/SnipeeMac/SnipeeMac/SnipeeMac.xcodeproj/project.xcworkspace",
-	"build_root": "/Users/tetetemac/Library/Developer/Xcode/DerivedData/SnipeeMac-fejchngjwjcafrhhirynvpvmxcom",
+	"workspace": "/Users/tetetemac/Library/Mobile Documents/com~apple~CloudDocs/Snipee/SnipeeMac/SnipeeMac/SnipeeMac.xcodeproj/project.xcworkspace",
+	"build_root": "/Users/tetetemac/Library/Developer/Xcode/DerivedData/SnipeeMac-disyzzmfpsxetceoizgoffpqyzej",
 	"scheme": "SnipeeMac",
 	"kind": "xcode"
 }

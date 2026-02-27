@@ -1,13 +1,20 @@
 # Snipee HANDOVER — Mac (Swift)
 
-**最終更新**: 2026-02-09
+**最終更新**: 2026-02-27
 
 ---
 
 ## 🚩 現在地
 
-- クラウド同期 Phase 3 途中（PersonalSyncService.swift に着手開始段階）
-- 2/5のチャットでMac版の同期エンジン着手
+- クラウド同期 Phase 3 完了（Mac版・iOS版 PersonalSyncService.swift 実装済み）
+- 2/10 サイドバーUI大幅改善（「...」メニュー、NSViewRepresentable化、自動スクロール）
+- 2/15 MVP化：他部署マスタ参照を削除（将来復活用コードセットは本ドキュメント末尾に保存）
+- 2/16 サイドバーリネーム修正（SwiftUI TextField → InlineTextField: NSViewRepresentable）
+- 2/16 右クリックメニュー復活（.contextMenu）
+- 2/19 エクスポート機能完成（Downloads直接保存、Snipee形式/Clipy形式対応）
+- 2/19 VSCode SourceKit-LSP セットアップ完了（xcode-build-server config済み）
+- 2/27 FolderSidebar バグ修正・UX改善（詳細は変更履歴参照）
+- 2/27 v2.0.5 リリース完了
 
 ---
 
@@ -71,6 +78,33 @@ Snipeeはクリップボード履歴とスニペット管理ツール。チー�
 **失敗**: コンパイラが型チェックできない（reasonable time エラー）
 **解決**: ViewModifierに分離するか、関数に切り出す
 
+### 11. ❌ SwiftUI ScrollView + LazyVStack + ScrollViewReader の組み合わせ
+
+**失敗**: `scrollTo` が遅延読み込みをトリガー → 再レンダリング → 無限ループ
+**解決**: `LazyVStack` → `VStack` に変更（スニペット数が数百レベルなら問題なし）
+
+### 12. ❌ SwiftUI の .popover / Menu ビューをリスト全行に配置しない
+
+**失敗**: SwiftUI `Menu` を全行に常時配置 → スクロール不能になるレベルのパフォーマンス劣化
+**解決**: `NSViewRepresentable` + `NSButton` + `NSMenu` に置換。SwiftUIのイベントチェーンを経由しないので高速かつ位置正確
+
+### 13. ❌ SwiftUI の .onKeyPress を ScrollView に直接使わない
+
+**失敗**: `ScrollView` + `.focusable()` + `.onKeyPress` ではキーイベントが発火しない
+**解決**: `NSEvent.addLocalMonitorForEvents` でキーイベントをキャッチする方式に切り替える（SidebarKeyboardMonitor実装予定）
+
+### 14. ❌ SwiftUI TextField(.plain) + .onSubmit をmacOSで使わない
+
+**失敗**: `.textFieldStyle(.plain)` + `.onSubmit` はmacOS SwiftUIの既知バグでEnterキーが発火しない
+**試行錯誤**: `.onChange(of:)` で改行文字検出 → 動作不安定
+**解決**: `NSViewRepresentable` + `NSTextField` でラップ（InlineTextField）。`NSTextFieldDelegate` の `control(_:textView:doCommandBy:)` で `insertNewline:` / `cancelOperation:` を捕捉
+
+### 15. ❌ NSViewRepresentable のoverlayでクリックイベントを処理しない
+
+**失敗**: `RowClickHandler: NSViewRepresentable` をSwiftUI行の `.overlay()` で全行に配置 → `makeNSView` 中にクラッシュ（Thread 1で停止）。SnippetEditorが開かなくなる
+**原因**: NSViewのライフサイクルとSwiftUIのレイアウトサイクルの競合。大量のNSViewインスタンスが同時生成される
+**解決**: 左クリックは `.onTapGesture`、右クリックは `.contextMenu`、メニューボタンは `EllipsisMenuButton: NSViewRepresentable` に分離。NSViewRepresentableは最小限の用途に限定する
+
 ---
 
 ## 📊 機能対応表
@@ -91,7 +125,7 @@ Snipeeはクリップボード履歴とスニペット管理ツール。チー�
 | メンバー認証（スプシ）       |         ✅         |     ✅      |     ✅      |
 | マスタ同期                   |         ✅         |     ✅      |     ✅      |
 | マスタアップロード           |         ✅         |     ✅      |     ❌      |
-| 他部署マスタ参照             |         ✅         |     ✅      |     ❌      |
+| 他部署マスタ参照             |         ✅         |     🔒      |     ❌      |
 | 自動アップデート             |         ✅         |     ✅      |     ✅      |
 | 日次自動アップデートチェック |         ✅         |     ✅      |     ❌      |
 | XMLインポート/エクスポート   |         ✅         |     ✅      |     ❌      |
@@ -174,22 +208,15 @@ Snipeeはクリップボード履歴とスニペット管理ツール。チー�
 ### 設定画面
 
 - **一般タブ**: ユーザー名、履歴件数、ホットキー、リンク、セットアップ再表示、アップデート
-- **表示・操作タブ**: テーマ、表示設定
+- **表示・操作タブ**: フォルダ表示設定
 - **アカウントタブ**: ログイン状態、ログアウト
 - **ヘルプタブ**: 使い方、FAQ
-- **管理者タブ**: マスタアップロード（管理者のみ）
 
 ### 管理者機能
 
 - **権限**: スプシで「管理者」「最高管理者」に設定
 - **マスタアップロード**: 個人スニペットをGoogle Driveにアップロード
 - **共有ドライブ対応**: `supportsAllDrives=true`
-
-### 他部署マスタ参照
-
-- **ツールバーから選択**: 他部署のマスタを閲覧
-- **読み取り専用**: 編集不可
-- **テキスト選択可能**: コピーは可能
 
 ### キーボードナビゲーション
 
@@ -490,7 +517,7 @@ func stopAutoSync()
 
 **マイグレーション**: 既存データ読み込み時に `createdAt`/`updatedAt` が無ければ現在日時で補完
 
-#### Phase 3: 同期エンジン（Mac版先行）← 現在ここ
+#### Phase 3: 同期エンジン（Mac版先行）✅ 完了
 **目的**: 1プラットフォームで完全な同期機能を実装・検証
 
 **対象**: `PersonalSyncService.swift`
@@ -636,6 +663,20 @@ Authorization: Bearer {token}
 
 ## 🚨 未解決の問題
 
+### サイドバー キーボードナビゲーション ✅ 解決済み
+
+- `SidebarKeyboardMonitor: NSViewRepresentable` + `NSEvent.addLocalMonitorForEvents` で実装
+- `firstResponder is NSTextView` チェックでInlineTextField編集中はスキップ
+- フォルダ・スニペットともに `isFocused` で背景色ハイライト表示
+
+### サイドバー リネーム・右クリック ✅ 解決済み
+
+- **リネーム**: InlineTextField（NSTextField wrapper）でEnter/Escape/フォーカスロス全対応 → ログ確認済み
+- **右クリック**: `.contextMenu` で復活 → 動作確認済み
+- **...ボタン**: `EllipsisMenuButton` 復活 → 動作確認済み
+
+**関連ファイル**: `FolderSidebar.swift`
+
 ### スニペットエディタのパフォーマンス問題
 
 **症状**: スニペットをクリックしてからフォーカス移動までワンテンポ遅れる。Clipy（AppKit）は軽いがSnipee（SwiftUI）は重い。
@@ -684,33 +725,57 @@ SnippetRow.onTapGesture (FolderSidebar.swift:914)
 
 **将来検討**: 上記で不十分な場合、SwiftUI TextEditor → NSViewRepresentable(NSTextView)への置換
 
-### XMLインポート後にcontentが表示されない
-
-**症状**: XMLインポート成功、保存も成功、しかしContentPanelでスニペット選択時にcontentが空
-
-**状況**: 調査済みだが未解決。スキップして後回し。
-
-**関連ファイル**:
-
-- `SnippetEditorView.swift`: handlePersonalImport()
-- `ContentPanel.swift`: loadSnippet(), selectedSnippet計算プロパティ
-
 ---
 
 ## 🗓️ TODO / ロードマップ
 
 ### 🔴 最優先
-- クラウド同期 Phase 3 完成（PersonalSyncService.swift）
+- デバッグprint文の削除（FolderSidebar.swift 内の InlineTextField / commitRename 系）
 
 ### 🟡 改善
 - スニペットエディタ パフォーマンス改善（@Stateバッチ化、saveImmediately非同期化）
 - Mac改善4件（Keychain化、スコープ制限等）
-- XMLインポート問題
 
 ### 🟢 将来
 - ユーザーへのMac版移行案内
 - Swift 6 移行（async/await対応）
 - タグ機能、検索機能強化
+
+---
+
+## 🔮 今後の展望
+
+### サイドバーUI（短期）
+
+| 項目 | 内容 | 優先度 |
+|------|------|--------|
+| デバッグprint削除 | InlineTextField / commitSnippetRename / commitFolderRename 内のprint文を削除 | 高 |
+
+### エディタ全般（中期）
+
+| 項目 | 内容 | 優先度 |
+|------|------|--------|
+| パフォーマンス改善 | @State変数バッチ化、saveImmediately非同期化 | 高 |
+| NSTextView化 | SwiftUI TextEditor → NSViewRepresentable(NSTextView) への置換検討 | 中 |
+| タグ機能 | スニペットにタグ付け、フィルタリング | 低 |
+| テンプレート変数拡張 | 新しい変数タイプの追加 | 低 |
+
+### クロスプラットフォーム（長期）
+
+| 項目 | 内容 | 優先度 |
+|------|------|--------|
+| クラウド同期Windows版 | Mac・iOS完了済み → Windows版の実装 | 中 |
+| Windows版機能統一 | Electron版のCSS/JS共通化、auto-paste改善 | 中 |
+| App Store提出 | iOS版（Snipee Tap）の審査提出 | 中 |
+| デザイン統一 | Steve Jobs風グレーカラースキーム | 低 |
+
+### アーキテクチャ（長期）
+
+| 項目 | 内容 | 優先度 |
+|------|------|--------|
+| SwiftUIからAppKit移行検討 | パフォーマンスクリティカルな箇所（サイドバー、エディタ）をNSViewRepresentableまたは完全AppKit化 | 中 |
+| Swift 6対応 | async/await、Strict Concurrency | 低 |
+| スコープ制限 | Google Drive API `drive` → `drive.file` | 中 |
 
 ---
 
@@ -763,6 +828,77 @@ defaults delete com.addness.SnipeeMac welcomeCompleted
 
 ## 🔄 変更履歴
 
+### 2026-02-27
+
+- **FolderSidebar バグ修正・UX改善**（FolderSidebar.swift）
+  - **キーボードナビゲーション完成**: `SidebarKeyboardMonitor` + `NSEvent.addLocalMonitorForEvents` で↑↓ナビ・Enter開閉が正常動作。`firstResponder is NSTextView` チェックでInlineTextField編集中はスキップ
+  - **フォルダ作成をインライン化**: モーダル廃止 → 作成直後にインライン入力へ移行。空名のままコミットで自動削除
+  - **マスタ/個別フォルダ作成分岐を修正**: ヘッダー「+」ボタンとコンテキストメニューの両方で `isShowingMaster && isAdmin` を参照してマスタ/個別を正しく振り分け
+  - **フォルダクリック時のフォーカス状態を修正**: `onToggle` 内で `focusedItemId` と `isShowingMaster` を更新し、フォルダクリック後の「+」ボタンが正しく機能するように
+  - **フォルダのフォーカス背景色を追加**: スニペットと同様に `isFocused` で `Color.accentColor.opacity(0.3)` を表示。縦線インジケーターを廃止
+  - **削除したデータが再起動で復活するバグを修正**: `deleteFolder` / `deleteSnippet` 時に `PersonalSyncService.shared.markAsDeleted(id:)` を呼ぶように修正。`deleted` リストが空のままだったためクラウドから上書きされていた
+  - **MainPopupView.swift を移動**: `Views/Popup/` → `Views/Onboarding/` に移動。古いファイルがリモートに残存していてビルド時に重複エラーが発生していたため削除
+- **v2.0.5 リリース完了**（tag: mac-v2.0.5）
+
+### 2026-02-16
+
+- **サイドバーリネーム完全修正**（FolderSidebar.swift）
+  - SwiftUI `TextField(.plain)` + `.onSubmit` → `InlineTextField: NSViewRepresentable` + `NSTextField` に置換
+  - `NSTextFieldDelegate` の `controlTextDidEndEditing` / `control(_:textView:doCommandBy:)` でEnter/Escape/フォーカスロス全対応
+  - `hasCommitted` フラグで二重実行防止
+  - SwiftUI `@FocusState` / `.focused()` / `.onChange(of: editingTitle)` 改行検出ハック全削除
+- **右クリックメニュー復活**（FolderSidebar.swift）
+  - FolderRow / SnippetRow に `.contextMenu` 追加（SwiftUI標準、軽量）
+  - メニュー内容：新規スニペット、新規フォルダ、名前変更、昇格/降格（管理者のみ）、削除
+- **EllipsisMenuButton（...ボタン）復活**（FolderSidebar.swift）
+  - RowClickHandler方式（NSView overlay全行配置）はmakeNSView中にクラッシュ → 廃止
+  - 元の `EllipsisMenuButton: NSViewRepresentable` + `NSButton` + `NSMenu` 方式に戻した
+- **RowClickHandler削除**（FolderSidebar.swift）
+  - NSViewRepresentableをoverlayで全行配置 → Thread 1クラッシュ
+  - 左クリック: `.onTapGesture`、右クリック: `.contextMenu` に分離
+- **キーボードナビゲーション修正指示作成**（FolderSidebar.swift）
+  - `SidebarKeyboardMonitor` 方式（NSEvent.addLocalMonitorForEvents）
+  - 13箇所の修正指示を作成（未適用）
+
+### 2026-02-15
+
+- **MVP化：他部署マスタ参照を削除**（SnippetEditorView.swift）
+  - @State変数5個削除（allDepartments, selectedOtherDepartment, otherDepartmentFolders, isLoadingOtherDepartment, isViewingOtherDepartment）
+  - editorToolbar から他部署閉じるボタン、otherDepartmentMenu を削除
+  - buildFlatSnippetList / currentMasterFolders / currentContentFolders の分岐簡素化
+  - sidebarView / contentPanelView の isReadOnly を false 固定
+  - loadAdminStatus から loadAllDepartments 呼び出し削除
+  - loadAllDepartments / loadOtherDepartmentSnippets / closeOtherDepartmentView 関数削除
+  - 将来復活用コードセットを HANDOVER 末尾に保存
+  - **未削除**: FolderSidebar.swift の isReadOnly パラメータ（false固定で残置）
+  - **未削除**: ContentPanel.swift の isReadOnly パラメータ（false固定で残置）
+  - **未削除**: GoogleSheetsService.swift の fetchAllDepartments / DepartmentInfo（API層は温存）
+
+### 2026-02-10
+
+- **サイドバーUI大幅改善**（FolderSidebar.swift）
+  - 右クリックメニュー廃止 → 「...」ボタン常時表示に変更
+  - SwiftUI `.popover` → SwiftUI `Menu` → NSMenu直接呼び出しと試行錯誤
+  - 最終的に `EllipsisMenuButton: NSViewRepresentable` + `NSButton` + `NSMenu` に落ち着く
+  - `objc_setAssociatedObject` でMenuActionのARC解放を防止
+  - ボタン座標から直接 `menu.popUp` で即時表示・位置正確
+  - `isHovered` / `onHover` / SwiftUI `Menu` 全削除でコード簡素化
+- **自動スクロール追加**（FolderSidebar.swift）
+  - `ScrollViewReader` + `scrollTo` でスニペット選択時に自動追尾
+  - `LazyVStack` → `VStack` に変更（LazyVStack + ScrollViewReader で無限ループ発生）
+  - `.focusEffectDisabled()` でフォーカスリング（青枠）非表示
+- **キーボードナビゲーション実装開始**（FolderSidebar.swift）
+  - `SidebarItem` enum: フォルダ/スニペットを統一的に扱う型
+  - `buildFlatList()`: 表示中アイテムをフラット配列化（閉じたフォルダの中身はスキップ）
+  - `navigateUp()` / `navigateDown()` / `handleEnter()` ロジック実装
+  - `focusedItemId` によるフォーカス管理・ハイライト表示
+  - **未完成**: `.onKeyPress` がScrollView上で発火しない → NSEvent方式への切り替え必要
+
+### 2026-02-09
+
+- **HANDOVERをMac/Windows/iOSに分離**
+  - 共通部分を排除し、プラットフォーム固有の情報に特化
+
 ### 2026-02-03
 
 - **Google APIスコープ変更**
@@ -776,7 +912,7 @@ defaults delete com.addness.SnipeeMac welcomeCompleted
   - `personal_snippets_backup` キーで保存
 - **ツールバー整理**（SnippetEditorView.swift）
   - ボタンを右寄せに統一
-  - 管理者: 同期 | インポート | エクスポート | 他部署マスタ▼ | マスタ更新
+  - 管理者: 同期 | インポート | エクスポート | マスタ更新
   - 一般: 同期 | インポート | エクスポート
   - ツールバーをコンテンツパネル側のみに表示
 - **レイアウト安定化**（ContentPanel.swift）
@@ -840,3 +976,156 @@ defaults delete com.addness.SnipeeMac welcomeCompleted
   - 読み取り専用モード実装
   - テキスト選択機能
 - **管理者マスタアップロード機能を追加**
+
+---
+
+## 🔒 将来復活用コードセット
+
+### 他部署マスタ参照（2026-02-15 削除）
+
+**概要**: 管理者がツールバーから他部署のマスタスニペットを読み取り専用で閲覧する機能
+
+**前提条件**:
+- `GoogleSheetsService.swift` の `fetchAllDepartments()` / `DepartmentInfo` は温存済み
+- `FolderSidebar.swift` / `ContentPanel.swift` の `isReadOnly` パラメータは温存済み
+- 復活時は `SnippetEditorView.swift` のみ修正すればよい
+
+**復活手順**: 以下のコードを `SnippetEditorView.swift` に追加する
+
+#### 1. @State変数（既存の isAdmin / userDepartment の下に追加）
+```swift
+@State private var allDepartments: [DepartmentInfo] = []
+@State private var selectedOtherDepartment: DepartmentInfo?
+@State private var otherDepartmentFolders: [SnippetFolder] = []
+@State private var isLoadingOtherDepartment = false
+@State private var isViewingOtherDepartment = false
+```
+
+#### 2. buildFlatSnippetList — isViewingOtherDepartment ガード追加
+```swift
+// personalFolders ループの前に追加
+if !isViewingOtherDepartment {
+    // ... personalFolders ループ
+}
+
+// masters の取得を差し替え
+let masters = isViewingOtherDepartment ? otherDepartmentFolders : masterFolders
+```
+
+#### 3. sidebarView / contentPanelView の isReadOnly を差し替え
+```swift
+// sidebarView
+isReadOnly: isViewingOtherDepartment,
+
+// contentPanelView
+isReadOnly: isViewingOtherDepartment,
+onSave: { if !isViewingOtherDepartment { saveData() } },
+onAddSnippet: { if !isViewingOtherDepartment { isAddingSnippet = true } },
+```
+
+#### 4. currentMasterFolders / currentContentFolders の分岐復活
+```swift
+private var currentMasterFolders: Binding<[SnippetFolder]> {
+    isViewingOtherDepartment ? $otherDepartmentFolders : $masterFolders
+}
+
+private var currentContentFolders: Binding<[SnippetFolder]> {
+    if isShowingMaster {
+        return isViewingOtherDepartment ? $otherDepartmentFolders : $masterFolders
+    } else {
+        return $personalFolders
+    }
+}
+```
+
+#### 5. editorToolbar に他部署UI追加（Spacer() の直後）
+```swift
+if isViewingOtherDepartment {
+    Button(action: closeOtherDepartmentView) {
+        HStack(spacing: 4) {
+            Text(selectedOtherDepartment?.name ?? "")
+            Image(systemName: "xmark.circle.fill")
+        }
+    }
+    .foregroundColor(.orange)
+}
+
+// ... 同期ボタン等 ...
+
+if isAdmin && !isViewingOtherDepartment {
+    otherDepartmentMenu
+    // マスタ更新ボタン
+}
+```
+
+#### 6. otherDepartmentMenu（importMenu の直前に配置）
+```swift
+private var otherDepartmentMenu: some View {
+    Menu {
+        ForEach(allDepartments.filter { $0.name != userDepartment }, id: \.name) { dept in
+            Button(dept.name) {
+                selectedOtherDepartment = dept
+                loadOtherDepartmentSnippets()
+            }
+        }
+    } label: {
+        Label("他部署マスタ", systemImage: "building.2")
+    }
+}
+```
+
+#### 7. loadAdminStatus 内の loadAllDepartments 呼び出し復活
+```swift
+// isAdmin 判定の直後に追加
+if self.isAdmin {
+    self.loadAllDepartments()
+}
+```
+
+#### 8. 3関数を追加（saveData の直前）
+```swift
+private func loadAllDepartments() {
+    GoogleSheetsService.shared.fetchAllDepartments { result in
+        switch result {
+        case .success(let departments):
+            allDepartments = departments
+        case .failure(let error):
+            print("Failed to load departments: \(error.localizedDescription)")
+        }
+    }
+}
+
+private func loadOtherDepartmentSnippets() {
+    guard let dept = selectedOtherDepartment else { return }
+    isLoadingOtherDepartment = true
+    GoogleDriveService.shared.downloadXMLFile(fileId: dept.fileId) { result in
+        DispatchQueue.main.async {
+            isLoadingOtherDepartment = false
+            switch result {
+            case .success(let data):
+                let parser = XMLParserHelper()
+                otherDepartmentFolders = parser.parse(data: data)
+                isShowingMaster = true
+                isViewingOtherDepartment = true
+                if let firstFolder = otherDepartmentFolders.first {
+                    selectedFolderId = firstFolder.id
+                    if let firstSnippet = firstFolder.snippets.first {
+                        selectedSnippetId = firstSnippet.id
+                    }
+                }
+                alertMessage = "読み込み完了: \(otherDepartmentFolders.count)フォルダ"
+                showAlert = true
+            case .failure(let error):
+                alertMessage = "読み込みに失敗しました: \(error.localizedDescription)"
+                showAlert = true
+            }
+        }
+    }
+}
+
+private func closeOtherDepartmentView() {
+    isViewingOtherDepartment = false
+    selectedOtherDepartment = nil
+    otherDepartmentFolders = []
+}
+```

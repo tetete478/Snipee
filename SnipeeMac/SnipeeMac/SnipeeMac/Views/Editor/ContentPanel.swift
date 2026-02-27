@@ -79,6 +79,11 @@ struct ContentPanel: View {
         .onChange(of: folders.count) { oldValue, newValue in
             loadSnippet()
         }
+        .onChange(of: selectedSnippet?.title) { _, newTitle in
+            if let newTitle, !isEditingTitle, editingTitle != newTitle {
+                editingTitle = newTitle
+            }
+        }
         .onChange(of: editingContent) { oldValue, newValue in
             if oldValue != newValue && newValue != selectedSnippet?.content {
                 hasUnsavedChanges = true

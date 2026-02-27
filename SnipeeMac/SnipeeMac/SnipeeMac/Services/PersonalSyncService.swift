@@ -41,7 +41,6 @@ class PersonalSyncService {
                 self?.syncFileId = fileId
                 self?.performSync(completion: completion)
             case .failure(let error):
-                print("❌ [PersonalSync] ensureSyncFile 失敗: \(error.localizedDescription)")
                 completion(.failure(error))
             }
         }
