@@ -94,9 +94,26 @@
         },
         onLeft: () => hideInlineSubmenu(),
         onSubmenuEnter: (item) => pasteSubmenuItem(item.content),
-        onSubmenuMove: () => nav.updateSubmenuVisual()
+        onSubmenuMove: () => nav.updateSubmenuVisual(),
+        onPinToggle: async (item) => {
+          const result = await ipcRenderer.invoke('toggle-pin-item', item.id);
+          pinnedItems = result.pinnedItems;
+          await loadAllItems(false);
+        }
       });
       nav.attach();
+
+      // Pキーでピン留めトグル
+      document.addEventListener('keydown', async (e) => {
+        if (e.key !== 'p' && e.key !== 'P') return;
+        if (!nav.isSubmenuOpen) return;
+        const selected = nav.getSelectedSubmenuItem();
+        if (!selected || selected.type !== 'history') return;
+        e.preventDefault();
+        const result = await ipcRenderer.invoke('toggle-pin-item', selected.id);
+        pinnedItems = result.pinnedItems;
+        await loadAllItems(false);
+      });
 
       ipcRenderer.on('clipboard-updated', () => {
         loadAllItems(false);

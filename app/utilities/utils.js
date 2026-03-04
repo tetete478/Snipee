@@ -239,6 +239,7 @@ class KeyboardNavigator {
     this.onSubmenuEnter = options.onSubmenuEnter || null;
     this.onNumberKey = options.onNumberKey || null;
     this.onFocusChange = options.onFocusChange || null;
+    this.onPinToggle = options.onPinToggle || null;
     
     
     // 入力中の無効化
@@ -368,6 +369,15 @@ class KeyboardNavigator {
       if (e.key === 'ArrowLeft' && this.onLeft) {
         e.preventDefault();
         this.onLeft();
+        return true;
+      }
+      // Pキーでピン留めトグル
+      if ((e.key === 'p' || e.key === 'P') && this.onPinToggle) {
+        e.preventDefault();
+        const item = this.getSubmenuSelectedItem();
+        if (item && item.type === 'history') {
+          this.onPinToggle(item);
+        }
         return true;
       }
       return false;

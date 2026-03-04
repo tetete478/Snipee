@@ -97,19 +97,13 @@ async function importPersonalXml(xmlContent) {
 
 async function exportSnippetsXml(xml, filename) {
   try {
-    const result = await dialog.showSaveDialog({
-      defaultPath: filename,
-      filters: [
-        { name: 'XML Files', extensions: ['xml'] }
-      ]
-    });
+    const { app } = require('electron');
+    const path = require('path');
+    const downloadsPath = app.getPath('downloads');
+    const filePath = path.join(downloadsPath, filename);
 
-    if (result.canceled) {
-      return { success: false, cancelled: true };
-    }
-
-    fs.writeFileSync(result.filePath, xml, 'utf-8');
-    return { success: true, path: result.filePath };
+    fs.writeFileSync(filePath, xml, 'utf-8');
+    return { success: true, path: filePath };
   } catch (error) {
     return { success: false, error: error.message };
   }

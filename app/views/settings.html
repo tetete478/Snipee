@@ -118,7 +118,7 @@
       <button class="tab" onclick="switchTab(event, 'display')"><span>⚙️</span><span>表示・操作</span></button>
       <button class="tab" onclick="switchTab(event, 'account')"><span>👤</span><span>アカウント</span></button>
       <button class="tab" onclick="switchTab(event, 'help')"><span>❓</span><span>ヘルプ</span></button>
-      <button class="tab" onclick="switchTab(event, 'admin')" id="admin-tab-btn" style="display: none;"><span>🔒</span><span>管理者</span></button>
+      
     </div>
     <div class="content">
       <!-- ========== 一般タブ ========== -->
@@ -164,38 +164,6 @@
           </div>
         </div>
         <div class="section">
-          <div class="section-header"><h2>🎉 セットアップ</h2></div>
-          <div class="section-description">初回セットアップ画面を再度表示します。</div>
-          <button class="btn btn-secondary" onclick="showWelcomeAgain()">📖 セットアップを再表示</button>
-        </div>
-      </div>
-
-      <!-- ========== 表示・操作タブ ========== -->
-      <div class="tab-content" id="display-tab">
-        <div class="section">
-          <div class="section-header"><h2>📁 フォルダ表示設定</h2></div>
-          <div class="section-description">表示したいフォルダにチェックを入れてください。</div>
-          <div id="folder-alert" class="alert"></div>
-          <div id="folder-list" style="max-height: 140px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: var(--border-radius); margin-bottom: 8px;"></div>
-          <div class="btn-group" style="margin-bottom: 8px;">
-            <button class="btn btn-secondary" onclick="selectAllFolders()">全選択</button>
-            <button class="btn btn-secondary" onclick="deselectAllFolders()">全解除</button>
-            <button class="btn btn-primary" onclick="saveFolderSettings()">💾 保存</button>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-header"><h2>📍 ウィンドウ位置</h2></div>
-          <div class="section-description">クリップボードウィンドウの表示位置を設定します。</div>
-          <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-              <input type="radio" name="windowPosition" value="cursor" style="width: auto;"> カーソル位置に表示
-            </label>
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 6px;">
-              <input type="radio" name="windowPosition" value="previous" style="width: auto;"> 前回の位置に表示
-            </label>
-          </div>
-        </div>
-        <div class="section">
           <div class="section-header"><h2>⌨️ ホットキー設定</h2></div>
           <div class="section-description">ウィンドウを開くホットキーをカスタマイズできます。</div>
           <div class="form-group">
@@ -225,30 +193,10 @@
           <div id="shortcut-alert" class="alert"></div>
           <div class="btn-group"><button class="btn btn-secondary" onclick="resetAllHotkeys()">🔄 デフォルトに戻す</button></div>
         </div>
-      </div>
-
-      <!-- ========== アカウントタブ ========== -->
-      <div class="tab-content" id="account-tab">
         <div class="section">
-          <div class="section-header"><h2>👤 ログイン情報</h2></div>
-          <div id="account-alert" class="alert"></div>
-          <div class="form-group">
-            <label>ログイン中のアカウント</label>
-            <input type="text" id="logged-in-email" readonly placeholder="読み込み中..."/>
-          </div>
-          <div class="form-group">
-            <label>所属部署</label>
-            <input type="text" id="user-departments" readonly placeholder="読み込み中..."/>
-          </div>
-          <div class="form-group">
-            <label>権限</label>
-            <input type="text" id="user-role" readonly placeholder="読み込み中..."/>
-          </div>
-          <div class="btn-group">
-            <button class="btn btn-secondary" onclick="manualSync()">🔄 今すぐ同期</button>
-            <button class="btn btn-secondary" onclick="logout()">🚪 ログアウト</button>
-          </div>
-          <div class="sync-status" id="sync-status">最終同期: 未同期</div>
+          <div class="section-header"><h2>🎉 セットアップ</h2></div>
+          <div class="section-description">初回セットアップ画面を再度表示します。</div>
+          <button class="btn btn-secondary" onclick="showWelcomeAgain()">📖 セットアップを再表示</button>
         </div>
         <div class="section">
           <div class="section-header"><h2>🔄 アップデート</h2></div>
@@ -268,6 +216,59 @@
           </div>
         </div>
       </div>
+
+      <!-- ========== 表示・操作タブ ========== -->
+      <div class="tab-content" id="display-tab">
+        <div class="section">
+          <div class="section-header"><h2>📁 フォルダ表示設定</h2></div>
+          <div class="section-description">表示したいフォルダにチェックを入れてください。</div>
+          <div id="folder-alert" class="alert"></div>
+          <div id="folder-list" style="max-height: 140px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: var(--border-radius); margin-bottom: 8px;"></div>
+          <div class="btn-group" style="margin-bottom: 8px;">
+            <button class="btn btn-secondary" onclick="selectAllFolders()">全選択</button>
+            <button class="btn btn-secondary" onclick="deselectAllFolders()">全解除</button>
+            <button class="btn btn-primary" onclick="saveFolderSettings()">💾 保存</button>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-header"><h2>📍 ウィンドウ位置</h2></div>
+          <div class="section-description">クリップボードウィンドウの表示位置を設定します。</div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="windowPosition" value="cursor" style="width: auto;"> カーソル位置に表示
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 6px;">
+              <input type="radio" name="windowPosition" value="previous" style="width: auto;"> 前回の位置に表示
+            </label>
+          </div>
+        </div>
+        </div>
+
+      <!-- ========== アカウントタブ ========== -->
+      <div class="tab-content" id="account-tab">
+        <div class="section">
+          <div class="section-header"><h2>👤 ログイン情報</h2></div>
+          <div id="account-alert" class="alert"></div>
+          <div class="form-group">
+            <label>ログイン中のアカウント</label>
+            <input type="text" id="logged-in-email" readonly placeholder="読み込み中..."/>
+          </div>
+          <div class="form-group">
+            <label>所属部署</label>
+            <input type="text" id="user-departments" readonly placeholder="読み込み中..."/>
+          </div>
+          <div class="form-group">
+            <label>権限</label>
+            <input type="text" id="user-role" readonly placeholder="読み込み中..."/>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="manualSync()">🔄 マスタ同期</button>
+            <button class="btn btn-secondary" onclick="syncPersonalSnippets()">☁️ 個別同期</button>
+            <button class="btn btn-secondary" onclick="logout()">🚪 ログアウト</button>
+          </div>
+          <div class="sync-status" id="sync-status">最終同期: 未同期</div>
+        </div>
+        </div>
 
       <!-- ========== ヘルプタブ ========== -->
       <div class="tab-content" id="help-tab">
@@ -290,7 +291,10 @@
               <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">{明日} / {明後日}</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">YYYY/MM/DD形式</td></tr>
               <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">{今日:MM/DD} / {明日:MM/DD}</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">MM/DD形式</td></tr>
               <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">{タイムスタンプ}</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">YYYY/MM/DD HH:mm:ss形式</td></tr>
-              <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">連動ペアA/B/C</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">1日除外パターン（毎月1日をスキップ）</td></tr>
+              <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">{当日:M月D日:曜日短（毎月1日は除外して翌日）}</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">連動ペアA-1</td></tr>
+              <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">{1日後:M月D日:曜日短（毎月1日は除外して2日後）}</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">連動ペアA-2 / B-1</td></tr>
+              <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">{2日後:M月D日:曜日短（毎月1日は除外して3日後）}</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">連動ペアB-2 / C-1</td></tr>
+              <tr><td style="padding: 5px 8px; border-bottom: 1px solid #eee; font-family: monospace;">{3日後:M月D日:曜日短（毎月1日は除外して4日後）}</td><td style="padding: 5px 8px; border-bottom: 1px solid #eee;">連動ペアC-2</td></tr>
             </tbody>
           </table>
         </div>
@@ -312,35 +316,7 @@
         </div>
       </div>
 
-      <!-- ========== 管理タブ（権限者のみ） ========== -->
-      <div class="tab-content" id="admin-tab">
-        <div class="section">
-          <div class="section-header"><h2>🔒 管理者メニュー</h2></div>
-          <div class="section-description">部署のマスタスニペットをインポート/エクスポートできます。</div>
-          <div class="link-list" style="margin-bottom: 12px;">
-            <div class="link-item"><a href="#" onclick="openExternal('https://docs.google.com/spreadsheets/d/1IIl0mE96JZwTj-M742DVmVgBLIH27iAzT0lzrpu7qbM/edit?gid=0#gid=0'); return false;">📊 Snipee メンバー管理（スプレッドシート）</a></div>
-          </div>
-          <div id="admin-alert" class="alert"></div>
-          <div class="form-group">
-            <label>対象部署</label>
-            <select id="admin-department-select" style="width: 100%; padding: 7px 10px; border: 1px solid #ddd; border-radius: var(--border-radius); font-size: 12px; background: var(--bg-color);">
-              <option value="">読み込み中...</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>現在のスニペット数</label>
-            <input type="text" id="admin-snippet-count" readonly value="読み込み中..."/>
-          </div>
-          <div class="btn-group" style="margin-top: 12px;">
-            <button class="btn btn-primary" onclick="importDepartmentXml()">📥 XMLインポート</button>
-            <button class="btn btn-secondary" onclick="exportDepartmentXml()">📤 XMLエクスポート</button>
-          </div>
-          <div class="help-text" style="margin-top: 8px;">
-            インポート: Clipy形式のXMLファイルを選択してアップロード<br>
-            エクスポート: 現在の部署スニペットをXMLファイルとして保存
-          </div>
-        </div>
-      </div>
+      
     </div>
   </div>
 
@@ -367,7 +343,7 @@
     const store = new Store();
     
     // タブ名を4つに変更
-    const tabNames = ['general', 'display', 'account', 'help', 'admin'];
+    const tabNames = ['general', 'display', 'account', 'help'];
     let currentTabIndex = 0;
     let capturedHotkey = null;
     let currentEditingType = null;
@@ -497,11 +473,7 @@
         document.getElementById('user-departments').value = member.departments.join(', ');
         document.getElementById('user-role').value = member.role;
         
-        // 管理タブの表示制御
-        if (member.role === '最高管理者' || member.role === '管理者') {
-          document.getElementById('admin-tab-btn').style.display = 'flex';
-          await loadAdminTab(member);
-        }
+        
       } else {
         document.getElementById('logged-in-email').value = '未ログイン';
         document.getElementById('user-departments').value = '-';
@@ -516,9 +488,14 @@
     async function manualSync() {
       showAlert('🔄 同期中...', 'info', 'account-alert');
       await ipcRenderer.invoke('manual-sync');
-      showAlert('✅ 同期完了しました', 'success', 'account-alert');
+      showAlert('✅ マスタ同期完了しました', 'success', 'account-alert');
       await loadSyncStatus();
       await loadFolders();
+    }
+    async function syncPersonalSnippets() {
+      showAlert('☁️ 個別スニペット同期中...', 'info', 'account-alert');
+      await ipcRenderer.invoke('sync-personal-snippets');
+      showAlert('✅ 個別スニペット同期完了しました', 'success', 'account-alert');
     }
     function escapeAttr(text) { return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
     function openExternal(url) { shell.openExternal(url); }
@@ -680,144 +657,7 @@
       }
     });
 
-    // ========================================
-    // 管理タブ機能
-    // ========================================
-    let adminDepartments = [];
-    let selectedAdminDepartment = null;
-
-    async function loadAdminTab(member) {
-      const result = await ipcRenderer.invoke('get-editable-departments');
-      adminDepartments = result.departments || [];
-      
-      const select = document.getElementById('admin-department-select');
-      
-      if (adminDepartments.length === 0) {
-        select.innerHTML = '<option value="">編集可能な部署がありません</option>';
-        document.getElementById('admin-snippet-count').value = '-';
-        return;
-      }
-      
-      select.innerHTML = adminDepartments.map(dept => 
-        `<option value="${escapeAttr(dept.name)}">${escapeHtml(dept.name)}</option>`
-      ).join('');
-      
-      const userDept = member.departments[0];
-      if (userDept && adminDepartments.some(d => d.name === userDept)) {
-        select.value = userDept;
-      }
-      
-      selectedAdminDepartment = select.value;
-      await updateAdminSnippetCount();
-      
-      select.addEventListener('change', async () => {
-        selectedAdminDepartment = select.value;
-        await updateAdminSnippetCount();
-      });
-    }
-
-    async function updateAdminSnippetCount() {
-      if (!selectedAdminDepartment) {
-        document.getElementById('admin-snippet-count').value = '-';
-        return;
-      }
-      
-      const allData = await ipcRenderer.invoke('get-all-items');
-      const masterSnippets = allData.masterSnippets || [];
-      const count = masterSnippets.length;
-      document.getElementById('admin-snippet-count').value = `${count}件`;
-    }
-
-    async function importDepartmentXml() {
-      if (!selectedAdminDepartment) {
-        showAlert('部署を選択してください', 'error', 'admin-alert');
-        return;
-      }
-      
-      const result = await ipcRenderer.invoke('select-xml-file');
-      if (!result.success) {
-        if (result.error) showAlert(result.error, 'error', 'admin-alert');
-        return;
-      }
-      
-      const xmlContent = result.content;
-      
-      if (!confirm(`「${selectedAdminDepartment}」の部署スニペットを上書きします。\n\nこの操作は取り消せません。続行しますか？`)) {
-        return;
-      }
-      
-      showAlert('📤 アップロード中...', 'info', 'admin-alert');
-      
-      const uploadResult = await ipcRenderer.invoke('upload-department-xml', {
-        departmentName: selectedAdminDepartment,
-        xmlContent: xmlContent
-      });
-      
-      if (uploadResult.success) {
-        showAlert('✅ インポート完了しました', 'success', 'admin-alert');
-        await updateAdminSnippetCount();
-      } else {
-        showAlert(`❌ ${uploadResult.error}`, 'error', 'admin-alert');
-      }
-    }
-
-    async function exportDepartmentXml() {
-      if (!selectedAdminDepartment) {
-        showAlert('部署を選択してください', 'error', 'admin-alert');
-        return;
-      }
-      
-      const allData = await ipcRenderer.invoke('get-all-items');
-      const masterSnippets = allData.masterSnippets || [];
-      
-      if (masterSnippets.length === 0) {
-        showAlert('エクスポートするスニペットがありません', 'error', 'admin-alert');
-        return;
-      }
-      
-      const xml = generateExportXml(masterSnippets);
-      const filename = `${selectedAdminDepartment}-snippets.xml`;
-      
-      const result = await ipcRenderer.invoke('export-snippets-xml', { xml, filename });
-      
-      if (result.success) {
-        showAlert(`✅ エクスポート完了: ${result.path}`, 'success', 'admin-alert');
-      } else if (!result.cancelled) {
-        showAlert(`❌ ${result.error}`, 'error', 'admin-alert');
-      }
-    }
-
-    function generateExportXml(snippets) {
-      const folderGroups = {};
-      snippets.forEach(s => {
-        const folderName = s.folder || '未分類';
-        if (!folderGroups[folderName]) folderGroups[folderName] = [];
-        folderGroups[folderName].push(s);
-      });
-      
-      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<folders>\n';
-      
-      Object.entries(folderGroups).forEach(([folderName, folderSnippets]) => {
-        xml += `  <folder>\n    <title>${escapeXml(folderName)}</title>\n    <snippets>\n`;
-        folderSnippets.forEach(snippet => {
-          xml += `      <snippet>\n`;
-          if (snippet.id) xml += `        <id>${escapeXml(snippet.id)}</id>\n`;
-          xml += `        <title>${escapeXml(snippet.title || '')}</title>\n`;
-          xml += `        <content>${escapeXml(snippet.content || '')}</content>\n`;
-          if (snippet.description) xml += `        <description>${escapeXml(snippet.description)}</description>\n`;
-          xml += `      </snippet>\n`;
-        });
-        xml += `    </snippets>\n  </folder>\n`;
-      });
-      
-      xml += '</folders>';
-      return xml;
-    }
-
-    function escapeXml(str) {
-      if (!str) return '';
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-    }
+    
 
     async function showWelcomeAgain() {
       await ipcRenderer.invoke('show-welcome-window');

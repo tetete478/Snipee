@@ -177,6 +177,11 @@
         onLeft: () => hideInlineSubmenu(),
         onSubmenuEnter: (item) => pasteSubmenuItem(item.content),
         onSubmenuMove: () => nav.updateSubmenuVisual(),
+        onPinToggle: async (item) => {
+          const result = await ipcRenderer.invoke('toggle-pin-item', item.id);
+          pinnedItems = result.pinnedItems;
+          await loadAllItems(false);
+        },
         onNumberKey: (item) => {
           if (item?.classList.contains('action-item')) {
             item.click();

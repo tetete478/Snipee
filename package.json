@@ -8,7 +8,7 @@
   },
   "main": "app/main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "chcp 65001 && electron .",
     "dev": "electron . --debug",
     "build": "electron-builder --win",
     "build:win": "electron-builder --win",
