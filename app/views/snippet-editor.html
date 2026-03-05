@@ -469,22 +469,20 @@
       <button class="toolbar-btn" id="delete-btn" onclick="deleteSelected()" title="削除">
         <span>🗑</span>
       </button>
+      <button class="toolbar-btn" id="sync-btn" onclick="syncMaster()" title="マスタスニペットを最新に同期">
+        <span>🔄 マスタ同期</span>
+      </button>
       <button class="toolbar-btn" id="import-btn" onclick="showImportDialog()" title="XMLインポート">
         <span>📥 Import</span>
       </button>
       <button class="toolbar-btn" id="export-btn" onclick="showExportDialog()" title="XMLエクスポート">
         <span>📤 Export</span>
       </button>
-      <button class="toolbar-btn" onclick="showMasterPasswordDialog()" id="master-edit-btn" style="display: none;" title="マスタ編集モード">
-        <span>🔒 編集</span>
+      <button class="toolbar-btn" id="upload-master-btn" onclick="uploadMaster()" style="display: none;" title="編集中のマスタスニペットをアップロード">
+        <span>⬆️ マスタ更新</span>
       </button>
-      <button class="toolbar-btn" onclick="showOtherDeptDialog()" id="other-dept-btn" style="display: none;" title="他部署マスタ参照">
-        <span>🏢 他部署</span>
-      </button>
-      <button class="toolbar-btn" onclick="closeOtherDepartmentView()" id="close-other-dept-btn" style="display: none;" title="他部署表示を閉じる">
-        <span id="other-dept-label"></span>
-        <span> ✕</span>
-      </button>
+      
+      
     </div>
 
     <div class="main-content">
@@ -505,6 +503,26 @@
     <div style="background: white; padding: 24px; border-radius: 12px; width: 360px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
       <h3 style="margin: 0 0 16px 0; font-size: 16px;">XMLエクスポート</h3>
       <p style="margin: 0 0 16px 0; font-size: 13px; color: #666;">エクスポートするフォルダを選択してください：</p>
+      
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 11px; font-weight: 600; color: #86868b; margin-bottom: 6px;">フォーマット</div>
+        <div style="display: flex; gap: 8px;">
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; border: 1px solid #d2d2d7; border-radius: 6px; flex: 1;">
+            <input type="radio" name="export-format" value="snipee" checked>
+            <div>
+              <div style="font-size: 12px; font-weight: 600;">Snipee形式</div>
+              <div style="font-size: 10px; color: #86868b;">説明文あり</div>
+            </div>
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; border: 1px solid #d2d2d7; border-radius: 6px; flex: 1;">
+            <input type="radio" name="export-format" value="clipy">
+            <div>
+              <div style="font-size: 12px; font-weight: 600;">Clipy形式</div>
+              <div style="font-size: 10px; color: #86868b;">Clipy互換</div>
+            </div>
+          </label>
+        </div>
+      </div>
       
       <div style="margin-bottom: 16px;">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; padding: 8px; background: #f5f5f7; border-radius: 6px;">
@@ -563,18 +581,7 @@
     </div>
   </div>
 
-  <!-- 他部署選択モーダル -->
-  <div id="other-dept-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-    <div style="background: white; padding: 24px; border-radius: 12px; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-      <h3 style="margin: 0 0 16px 0; font-size: 16px;">🏢 他部署マスタ参照</h3>
-      <p style="margin: 0 0 16px 0; font-size: 13px; color: #666;">参照する部署を選択してください：</p>
-      <div id="other-dept-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; margin-bottom: 16px;"></div>
-      <div id="other-dept-loading" style="display: none; text-align: center; padding: 12px; color: #666; font-size: 13px;">📥 読み込み中...</div>
-      <div style="display: flex; gap: 8px; justify-content: flex-end;">
-        <button onclick="hideOtherDeptDialog()" style="padding: 8px 16px; border: 1px solid #d2d2d7; background: white; border-radius: 6px; cursor: pointer;">閉じる</button>
-      </div>
-    </div>
-  </div>
+  
 
   <script>
     const { ipcRenderer } = require('electron');
@@ -590,12 +597,9 @@
     let expandedFolders = new Set();
     let selectedFolder = null;
     let selectedSnippet = null;
-    let isMasterEditMode = false;  // マスタ編集モード
+    function isAdmin() { return userRole === '最高管理者' || userRole === '管理者'; }
     let autoSaveTimer = null;  // 自動保存デバウンス用タイマー
-    let isViewingOtherDepartment = false;
-    let otherDeptSnippets = [];
-    let otherDeptName = '';
-    let viewableDepartments = [];
+    
     let autoSaveDescTimer = null;  // 説明欄デバウンス用タイマー
     let userRole = '';
     const AUTO_SAVE_DELAY = 300;  // 0.3秒
@@ -605,8 +609,7 @@
       const roleResult = await ipcRenderer.invoke('get-editable-departments');
       userRole = roleResult.role || '';
       render();
-      updateMasterEditButton();
-      await loadViewableDepartments();
+      updateSyncButton();
     }
 
     async function loadData() {
@@ -632,7 +635,6 @@
       masterSnippets = masterSnippets.map(s => ({ ...s, isMaster: true }));
       
       allSnippets = [...masterSnippets, ...personalSnippets];
-      updateMasterEditButton();
     }
 
     function render() {
@@ -641,47 +643,6 @@
 
     function renderSidebar() {
       const sidebar = document.getElementById('sidebar');
-      
-      if (isViewingOtherDepartment) {
-        const otherFolders = [...new Set(otherDeptSnippets.map(s => s.folder))];
-        
-        let html = '';
-        
-        otherFolders.forEach(folder => {
-          const folderSnippets = otherDeptSnippets.filter(s => s.folder === folder);
-          const isExpanded = expandedFolders.has(folder);
-          
-          html += `
-            <div class="folder-group">
-              <div class="folder-header" data-folder="${escapeAttr(folder)}">
-                <div class="folder-toggle-area" onclick="toggleFolder('${escapeAttr(folder)}')">
-                  <span class="folder-toggle ${isExpanded ? 'expanded' : ''}">▶</span>
-                  <span class="folder-icon">📁</span>
-                </div>
-                <span class="folder-name" onclick="toggleFolder('${escapeAttr(folder)}')" title="${escapeAttr(folder)}">${escapeHtml(folder)}</span>
-                <span class="label-badge reference folder-badge">参照モード</span>
-              </div>
-              <div class="snippet-list ${isExpanded ? 'expanded' : ''}">
-                ${folderSnippets.map(snippet => `
-                  <div class="snippet-item ${selectedSnippet?.id === snippet.id ? 'selected' : ''}" 
-                    data-id="${snippet.id}"
-                    onclick="selectOtherDeptSnippet('${snippet.id}')">
-                    <span class="snippet-icon">🔒</span>
-                    <span class="snippet-name" title="${escapeAttr(snippet.title || '無題')}">${escapeHtml(snippet.title || '無題')}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
-        });
-        
-        if (otherFolders.length === 0) {
-          html += '<div style="text-align: center; padding: 40px 20px; color: #86868b;">スニペットがありません</div>';
-        }
-        
-        sidebar.innerHTML = html;
-        return;
-      }
       
       // ✅ マスタフォルダ（独立管理） + スニペットから取得したフォルダを結合
       const allMasterFolders = [...new Set([...masterFolders, ...masterSnippets.map(s => s.folder)])];
@@ -703,7 +664,7 @@
                   <span class="folder-toggle ${isExpanded ? 'expanded' : ''}">▶</span>
                   <span class="folder-icon">📁</span>
                 </div>
-                <span class="folder-name" onclick="toggleFolder('${escapeAttr(folder)}')" title="${escapeAttr(folder)}">${escapeHtml(folder)}</span>
+                <span class="folder-name" onclick="toggleFolder('${escapeAttr(folder)}')" ondblclick="event.preventDefault(); if(isAdmin()) startRenameFolder('${escapeAttr(folder)}')" title="${escapeAttr(folder)}">${escapeHtml(folder)}</span>
                 <span class="label-badge master folder-badge">マスタ</span>
               </div>
               <div class="snippet-list ${isExpanded ? 'expanded' : ''}">
@@ -712,8 +673,9 @@
                     data-id="${snippet.id}"
                     data-folder="${escapeAttr(folder)}"
                     data-is-master="true"
-                    onclick="selectSnippet('${snippet.id}')">
-                    <span class="snippet-icon">🔒</span>
+                    onclick="selectSnippet('${snippet.id}')"
+                    ondblclick="event.preventDefault(); if(isAdmin()) startRenameSnippet('${snippet.id}')">
+                    <span class="snippet-icon">${isAdmin() ? '📄' : '🔒'}</span>
                     <span class="snippet-name" title="${escapeAttr(snippet.title || '無題')}">${escapeHtml(snippet.title || '無題')}</span>
                   </div>
                 `).join('')}
@@ -737,7 +699,7 @@
                   <span class="folder-toggle ${isExpanded ? 'expanded' : ''}">▶</span>
                   <span class="folder-icon">📁</span>
                 </div>
-                <span class="folder-name" ondblclick="event.preventDefault(); startRenameFolder('${escapeAttr(folder)}')" title="${escapeAttr(folder)}">${escapeHtml(folder)}</span>
+                <span class="folder-name" onclick="toggleFolder('${escapeAttr(folder)}')" ondblclick="event.preventDefault(); startRenameFolder('${escapeAttr(folder)}')" title="${escapeAttr(folder)}">${escapeHtml(folder)}</span>
                 <span class="label-badge personal folder-badge">個別</span>
               </div>
               <div class="snippet-list ${isExpanded ? 'expanded' : ''}">
@@ -769,7 +731,11 @@
       } else {
         expandedFolders.add(folderName);
       }
+      // フォルダ選択状態もセット
+      selectedFolder = folderName;
+      selectedSnippet = null;
       render();
+      showFolderPanel();
     }
 
     function selectFolder(folderName) {
@@ -777,7 +743,7 @@
       selectedSnippet = null;
       currentPane = 'sidebar';
       render();
-      showEmpty();
+      showFolderPanel();
     }
 
     function selectSnippet(snippetId) {
@@ -806,7 +772,7 @@
 
       const isMaster = selectedSnippet.isMaster === true;
       const isOtherDept = selectedSnippet.isOtherDept === true;
-      const canEdit = !isOtherDept && (!isMaster || isMasterEditMode);
+      const canEdit = !isOtherDept && (!isMaster || isAdmin());
       const readonlyAttr = canEdit ? '' : 'readonly';
       
       const editor = document.getElementById('editor-area');
@@ -815,7 +781,13 @@
         <div class="editor-header">
           <span class="editor-title">${escapeHtml(selectedSnippet.title || '無題')}</span>
           <span class="label-badge master">マスタスニペット</span>
-          ${canEdit ? '<span class="label-badge editable">編集可能</span>' : '<span class="label-badge readonly">読み取り専用</span>'}
+          ${canEdit ? `<button onclick="demoteSnippet('${selectedSnippet.id}')" style="margin-left: auto; padding: 3px 10px; border: 1px solid #d2d2d7; border-radius: 6px; background: white; cursor: pointer; font-size: 11px;">⬇️ 個別に降格</button>` : ''}
+        </div>
+        ` : isAdmin() ? `
+        <div class="editor-header">
+          <span class="editor-title">${escapeHtml(selectedSnippet.title || '無題')}</span>
+          <span class="label-badge personal">個別スニペット</span>
+          <button onclick="promoteSnippet('${selectedSnippet.id}')" style="margin-left: auto; padding: 3px 10px; border: 1px solid #d2d2d7; border-radius: 6px; background: white; cursor: pointer; font-size: 11px;">⬆️ マスタに昇格</button>
         </div>
         ` : ''}
         <div class="editor-container">
@@ -864,7 +836,6 @@
 
     function autoSave() {
       if (!selectedSnippet) return;
-      if (selectedSnippet.isMaster && !isMasterEditMode) return;
       
       // 前回のタイマーをクリア
       if (autoSaveTimer) {
@@ -909,9 +880,15 @@
       const newFolderName = '新しいフォルダ';
       let folderName = newFolderName;
       let counter = 1;
-      
-      // マスタ編集モードの場合はマスタフォルダに追加
-      if (isMasterEditMode) {
+
+      // 現在のフォーカスがマスタ側かどうかを判定
+      const allMasterFolderNames = [...new Set([...masterFolders, ...masterSnippets.map(s => s.folder)])];
+      const isCurrentlyMaster = selectedFolder
+        ? allMasterFolderNames.includes(selectedFolder)
+        : selectedSnippet?.isMaster === true;
+
+      // マスタ側にフォーカス中 かつ 管理者の場合はマスタに追加
+      if (isAdmin() && isCurrentlyMaster) {
         const allMasterFolders = [...new Set([...masterFolders, ...masterSnippets.map(s => s.folder)])];
         while (allMasterFolders.includes(folderName) || folders.includes(folderName)) {
           folderName = `${newFolderName} ${counter}`;
@@ -945,8 +922,8 @@
       const allMasterFolders = [...new Set([...masterFolders, ...masterSnippets.map(s => s.folder)])];
       const isMasterFolder = allMasterFolders.includes(folderName);
       
-      if (isMasterFolder && !isMasterEditMode) {
-        alert('マスタフォルダは削除できません\n（マスタ編集モードで削除できます）');
+      if (isMasterFolder && !isAdmin()) {
+        alert('マスタフォルダは削除できません\n（管理者権限が必要です）');
         return;
       }
       
@@ -1000,7 +977,7 @@
       const isTargetMasterFolder = allMasterFolders.includes(targetFolder);
       
       // マスタ編集モードでマスタフォルダが選択されている場合
-      if (isMasterEditMode && isTargetMasterFolder) {
+      if (isAdmin() && isTargetMasterFolder) {
         const newSnippet = {
           id: Date.now().toString(),
           title: '新しいスニペット',
@@ -1049,8 +1026,8 @@
     async function deleteSnippet(snippetId) {
       const snippet = allSnippets.find(s => s.id === snippetId);
       
-      if (snippet.isMaster && !isMasterEditMode) {
-        alert('マスタスニペットは削除できません\n（マスタ編集モードで削除できます）');
+      if (snippet.isMaster && !isAdmin()) {
+        alert('マスタスニペットは削除できません\n（管理者権限が必要です）');
         return;
       }
       
@@ -1127,8 +1104,8 @@
 
     function startRenameSnippet(snippetId) {
       const snippet = allSnippets.find(s => s.id === snippetId);
-      if (snippet.isMaster) {
-        alert('マスタスニペットの名前は変更できません');
+      if (snippet.isMaster && !isAdmin()) {
+        alert('マスタスニペットの名前は変更できません\n（管理者権限が必要です）');
         return;
       }
       
@@ -1174,11 +1151,19 @@
     }
 
     async function finishRenameSnippet(snippetId, newName) {
-      const snippet = personalSnippets.find(s => s.id === snippetId);
-      if (!snippet) return;
-      
       const trimmedName = newName.trim();
-      if (trimmedName) {
+      if (!trimmedName) {
+        render();
+        return;
+      }
+
+      const masterSnippet = masterSnippets.find(s => s.id === snippetId);
+      if (masterSnippet) {
+        masterSnippet.title = trimmedName;
+        await ipcRenderer.invoke('update-master-snippet', masterSnippet);
+      } else {
+        const snippet = personalSnippets.find(s => s.id === snippetId);
+        if (!snippet) return;
         snippet.title = trimmedName;
         await ipcRenderer.invoke('save-personal-snippets', personalSnippets);
       }
@@ -1193,12 +1178,15 @@
     }
 
     function startRenameFolder(folderName) {
-      const escapedName = folderName.replace(/"/g, '\\"');
-      const folderHeader = document.querySelector(`.folder-header[data-is-master="false"][data-folder="${escapedName}"]`);
-      
+      // 管理者はマスタフォルダも対象
+      const selector = isAdmin() ? '.folder-header' : '.folder-header[data-is-master="false"]';
+      const folderHeader = [...document.querySelectorAll(selector)]
+        .find(el => el.dataset.folder === folderName) || null;
       if (!folderHeader) return;
-      
+
+      const isMasterFolder = folderHeader.dataset.isMaster === 'true';
       const nameSpan = folderHeader.querySelector('.folder-name');
+      ipcRenderer.send('log', '[rename] nameSpan: ' + (nameSpan ? 'found' : 'NULL'));
       if (!nameSpan) return;
       
       const input = document.createElement('input');
@@ -1218,7 +1206,7 @@
           e.stopPropagation();
           if (!isFinishing) {
             isFinishing = true;
-            await finishRenameFolder(folderName, input.value);
+            await finishRenameFolder(folderName, input.value, isMasterFolder);
           }
         } else if (e.key === 'Escape') {
           e.preventDefault();
@@ -1231,50 +1219,77 @@
       input.addEventListener('blur', async () => {
         if (!isFinishing) {
           isFinishing = true;
-          await finishRenameFolder(folderName, input.value);
+          await finishRenameFolder(folderName, input.value, isMasterFolder);
         }
       });
     }
 
-    async function finishRenameFolder(oldName, newName) {
+    async function finishRenameFolder(oldName, newName, isMaster = false) {
       const trimmedName = newName.trim();
       
       if (!trimmedName || trimmedName === oldName) {
         render();
         return;
       }
-      
-      const otherFolders = folders.filter(f => f !== oldName);
-      
-      if (otherFolders.includes(trimmedName)) {
-        alert('このフォルダ名は既に存在します');
+
+      if (isMaster) {
+        // マスタフォルダのリネーム
+        const allCurrentMasterFolders = [...new Set([...masterFolders, ...masterSnippets.map(s => s.folder)])];
+        const otherMasterFolders = allCurrentMasterFolders.filter(f => f !== oldName);
+        if (otherMasterFolders.includes(trimmedName) || folders.includes(trimmedName)) {
+          alert('このフォルダ名は既に存在します');
+          render();
+          return;
+        }
+
+        // masterFolders配列を更新
+        const mfIndex = masterFolders.indexOf(oldName);
+        if (mfIndex !== -1) masterFolders[mfIndex] = trimmedName;
+        await ipcRenderer.invoke('save-master-folders', masterFolders);
+
+        // フォルダ内のマスタスニペットのfolder名を更新
+        const snippetsToUpdate = masterSnippets.filter(s => s.folder === oldName);
+        for (const snippet of snippetsToUpdate) {
+          snippet.folder = trimmedName;
+          await ipcRenderer.invoke('update-master-snippet', snippet);
+        }
+
+        if (expandedFolders.has(oldName)) {
+          expandedFolders.delete(oldName);
+          expandedFolders.add(trimmedName);
+        }
+        if (selectedFolder === oldName) selectedFolder = trimmedName;
+
+        await loadData();
         render();
-        return;
+      } else {
+        // 個別フォルダのリネーム
+        const otherFolders = folders.filter(f => f !== oldName);
+        if (otherFolders.includes(trimmedName)) {
+          alert('このフォルダ名は既に存在します');
+          render();
+          return;
+        }
+
+        const index = folders.indexOf(oldName);
+        if (index !== -1) folders[index] = trimmedName;
+
+        personalSnippets = personalSnippets.map(s => 
+          s.folder === oldName ? {...s, folder: trimmedName} : s
+        );
+
+        if (expandedFolders.has(oldName)) {
+          expandedFolders.delete(oldName);
+          expandedFolders.add(trimmedName);
+        }
+        if (selectedFolder === oldName) selectedFolder = trimmedName;
+
+        await ipcRenderer.invoke('save-personal-folders', folders);
+        await ipcRenderer.invoke('save-personal-snippets', personalSnippets);
+
+        await loadData();
+        render();
       }
-      
-      const index = folders.indexOf(oldName);
-      if (index !== -1) {
-        folders[index] = trimmedName;
-      }
-      
-      personalSnippets = personalSnippets.map(s => 
-        s.folder === oldName ? {...s, folder: trimmedName} : s
-      );
-      
-      if (expandedFolders.has(oldName)) {
-        expandedFolders.delete(oldName);
-        expandedFolders.add(trimmedName);
-      }
-      
-      if (selectedFolder === oldName) {
-        selectedFolder = trimmedName;
-      }
-      
-      await ipcRenderer.invoke('save-personal-folders', folders);
-      await ipcRenderer.invoke('save-personal-snippets', personalSnippets);
-      
-      await loadData();
-      render();
     }
 
     // ドラッグ＆ドロップマネージャー
@@ -1614,112 +1629,71 @@
       }
     }
 
-    async function loadViewableDepartments() {
-      const result = await ipcRenderer.invoke('get-viewable-departments');
-      viewableDepartments = result.departments || [];
-      updateOtherDeptButton();
-    }
-
-    function updateOtherDeptButton() {
-      const btn = document.getElementById('other-dept-btn');
-      const closeBtn = document.getElementById('close-other-dept-btn');
-      const editBtnIds = ['add-folder-btn', 'add-snippet-btn', 'delete-btn', 'import-btn', 'export-btn'];
-      
-      if (isViewingOtherDepartment) {
-        btn.style.display = 'none';
-        closeBtn.style.display = 'flex';
-        document.getElementById('other-dept-label').textContent = '🏢 ' + otherDeptName;
-        editBtnIds.forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = 'none';
-        });
-        const masterBtn = document.getElementById('master-edit-btn');
-        if (masterBtn) masterBtn.style.display = 'none';
-      } else {
-        editBtnIds.forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = 'flex';
-        });
-        if (viewableDepartments.length > 0) {
-          btn.style.display = 'flex';
-          closeBtn.style.display = 'none';
-        } else {
-          btn.style.display = 'none';
-          closeBtn.style.display = 'none';
-        }
-      }
-    }
-
-    function showOtherDeptDialog() {
-      const listDiv = document.getElementById('other-dept-list');
-      
-      if (viewableDepartments.length === 0) {
-        listDiv.innerHTML = '<div style="color: #86868b; text-align: center; padding: 20px;">参照可能な他部署がありません</div>';
-      } else {
-        listDiv.innerHTML = viewableDepartments.map(dept =>
-          `<div class="other-dept-item" onclick="loadOtherDepartment('${escapeAttr(dept.name)}')">
-            <span>📁</span>
-            <span>${escapeHtml(dept.name)}</span>
-          </div>`
-        ).join('');
-      }
-      
-      document.getElementById('other-dept-modal').style.display = 'flex';
-    }
-
-    function hideOtherDeptDialog() {
-      document.getElementById('other-dept-modal').style.display = 'none';
-    }
-
-    async function loadOtherDepartment(departmentName) {
-      const listDiv = document.getElementById('other-dept-list');
-      const loadingDiv = document.getElementById('other-dept-loading');
-      
-      listDiv.style.display = 'none';
-      loadingDiv.style.display = 'block';
-      
-      const result = await ipcRenderer.invoke('get-other-department-snippets', departmentName);
-      
-      loadingDiv.style.display = 'none';
-      listDiv.style.display = 'flex';
-      
-      if (result.success) {
-        otherDeptSnippets = result.snippets.map(s => ({ ...s, isMaster: true, isOtherDept: true }));
-        otherDeptName = departmentName;
-        isViewingOtherDepartment = true;
-        selectedSnippet = null;
-        selectedFolder = null;
-        
-        hideOtherDeptDialog();
-        updateOtherDeptButton();
-        render();
-        showEmpty();
-      } else {
-        alert('読み込みに失敗しました: ' + (result.error || '不明なエラー'));
-      }
-    }
-
-    function closeOtherDepartmentView() {
-      isViewingOtherDepartment = false;
-      otherDeptSnippets = [];
-      otherDeptName = '';
-      selectedSnippet = null;
-      selectedFolder = null;
-      
-      updateMasterEditButton();
-      render();
-      showEmpty();
-    }
-
-    function selectOtherDeptSnippet(snippetId) {
-      selectedSnippet = otherDeptSnippets.find(s => s.id === snippetId);
-      selectedFolder = null;
-      currentPane = 'sidebar';
-      render();
-      showEditor();
-    }
+    
 
     init();
+
+    // 右クリックでネイティブコンテキストメニューを表示
+    document.addEventListener('contextmenu', (e) => {
+      const folderHeader = e.target.closest('.folder-header');
+      const snippetItem  = e.target.closest('.snippet-item');
+
+      if (folderHeader) {
+        e.preventDefault();
+        const folderName = folderHeader.dataset.folder;
+        const isMasterEl = folderHeader.dataset.isMaster === 'true';
+        ipcRenderer.send('show-context-menu', { type: 'folder', id: folderName, isMaster: isMasterEl, folderName, isAdmin: isAdmin() });
+      } else if (snippetItem) {
+        e.preventDefault();
+        ipcRenderer.send('show-context-menu', { type: 'snippet', id: snippetItem.dataset.id, isMaster: snippetItem.dataset.isMaster === 'true', folderName: snippetItem.dataset.folder, isAdmin: isAdmin() });
+      }
+    });
+
+    // コンテキストメニューのアクションを受信して実行
+    ipcRenderer.on('context-menu-action', async (event, { action, id, isMaster, folderName }) => {
+      switch (action) {
+        case 'add-snippet':
+          selectedFolder = folderName;
+          selectedSnippet = null;
+          await addSnippet();
+          break;
+        case 'add-folder':
+          await addFolder();
+          break;
+        case 'rename-folder':
+          startRenameFolder(folderName);
+          break;
+        case 'rename-snippet':
+          startRenameSnippet(id);
+          break;
+        case 'promote-folder':
+          await promoteFolder(folderName);
+          break;
+        case 'demote-folder':
+          await demoteFolder(folderName);
+          break;
+        case 'promote-snippet':
+          await promoteSnippet(id);
+          break;
+        case 'demote-snippet':
+          await demoteSnippet(id);
+          break;
+        case 'delete-folder':
+          selectedFolder = folderName;
+          selectedSnippet = null;
+          await deleteFolder(folderName);
+          break;
+        case 'delete-snippet':
+          await deleteSnippet(id);
+          break;
+      }
+    });
+
+    // クラウド同期完了時に再読み込み
+    ipcRenderer.on('personal-snippets-updated', async () => {
+      await loadData();
+      render();
+    });
 
     // ========================================
     // エクスポート機能
@@ -1825,24 +1799,16 @@
         return;
       }
       
-      // ファイル名を決定
-      let filename = 'snippets.xml';
-      if (selectedFolders.length === 1) {
-        filename = `${selectedFolders[0].folder}.xml`;
-      } else {
-        const hasMaster = selectedFolders.some(f => f.type === 'master');
-        const hasPersonal = selectedFolders.some(f => f.type === 'personal');
-        if (hasMaster && !hasPersonal) {
-          filename = 'master-snippets.xml';
-        } else if (!hasMaster && hasPersonal) {
-          filename = 'personal-snippets.xml';
-        } else {
-          filename = 'selected-snippets.xml';
-        }
-      }
+      // 選択フォーマットを先に取得
+      const format = document.querySelector('input[name="export-format"]:checked')?.value || 'snipee';
+      const xml = format === 'clipy' ? generateClipyXML(snippetsToExport) : generateSnipeeXML(snippetsToExport);
       
-      // XMLを生成
-      const xml = generateClipyXML(snippetsToExport);
+      // ファイル名をMac版に合わせて決定
+      const hasMaster = selectedFolders.some(f => f.type === 'master');
+      const hasPersonal = selectedFolders.some(f => f.type === 'personal');
+      const typeString = hasMaster && !hasPersonal ? 'master' : hasPersonal && !hasMaster ? 'personal' : 'selected';
+      const formatString = format === 'clipy' ? 'clipy' : 'snipee';
+      const filename = `${typeString}-snippets-${formatString}.xml`;
       
       // 保存
       const result = await ipcRenderer.invoke('export-snippets-xml', { xml, filename });
@@ -1859,44 +1825,60 @@
       hideExportDialog();
     }
 
-    function generateClipyXML(snippets) {
-      // フォルダごとにグループ化
+    // Snipee形式: ルート<snippets>、<snippets>ラッパーなし、description含む
+    function generateSnipeeXML(snippets) {
       const folderGroups = {};
       snippets.forEach(s => {
         const folderName = s.folder || '未分類';
-        if (!folderGroups[folderName]) {
-          folderGroups[folderName] = [];
-        }
+        if (!folderGroups[folderName]) folderGroups[folderName] = [];
         folderGroups[folderName].push(s);
       });
       
-      // XML生成
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<snippets>\n';
+      
+      Object.entries(folderGroups).forEach(([folderName, folderSnippets]) => {
+        xml += `  <folder>\n`;
+        xml += `    <title>${escapeXml(folderName)}</title>\n`;
+        folderSnippets.forEach(snippet => {
+          xml += `    <snippet>\n`;
+          xml += `      <title>${escapeXml(snippet.title || '')}</title>\n`;
+          xml += `      <content>${escapeXml(snippet.content || '')}</content>\n`;
+          if (snippet.description) xml += `      <description>${escapeXml(snippet.description)}</description>\n`;
+          xml += `    </snippet>\n`;
+        });
+        xml += `  </folder>\n`;
+      });
+      
+      xml += '</snippets>';
+      return xml;
+    }
+
+    // Clipy互換形式: ルート<folders>、<snippets>ラッパーあり、descriptionなし
+    function generateClipyXML(snippets) {
+      const folderGroups = {};
+      snippets.forEach(s => {
+        const folderName = s.folder || '未分類';
+        if (!folderGroups[folderName]) folderGroups[folderName] = [];
+        folderGroups[folderName].push(s);
+      });
+      
       let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<folders>\n';
       
       Object.entries(folderGroups).forEach(([folderName, folderSnippets]) => {
         xml += `  <folder>\n`;
         xml += `    <title>${escapeXml(folderName)}</title>\n`;
         xml += `    <snippets>\n`;
-        
         folderSnippets.forEach(snippet => {
           xml += `      <snippet>\n`;
-          if (snippet.id) {
-            xml += `        <id>${escapeXml(snippet.id)}</id>\n`;
-          }
           xml += `        <title>${escapeXml(snippet.title || '')}</title>\n`;
           xml += `        <content>${escapeXml(snippet.content || '')}</content>\n`;
-          if (snippet.description) {
-            xml += `        <description>${escapeXml(snippet.description)}</description>\n`;
-          }
           xml += `      </snippet>\n`;
         });
-        
         xml += `    </snippets>\n`;
         xml += `  </folder>\n`;
       });
       
       xml += '</folders>';
-      
       return xml;
     }
     
@@ -1910,41 +1892,206 @@
         .replace(/'/g, '&apos;');
     }
 
-    // ========================================
-    // マスタ編集モード
-    // ========================================
-    function updateMasterEditButton() {
-      const btn = document.getElementById('master-edit-btn');
-      const canEdit = userRole === '最高管理者' || userRole === '管理者';
-      if (canEdit && (masterSnippets.length > 0 || masterFolders.length > 0)) {
-        btn.style.display = 'flex';
-        if (isMasterEditMode) {
-          btn.innerHTML = '<span>🔓 編集中</span>';
-          btn.style.background = '#e8f5e9';
-          btn.style.borderColor = '#34c759';
-        } else {
-          btn.innerHTML = '<span>🔒 マスタ編集</span>';
-          btn.style.background = '';
-          btn.style.borderColor = '';
-        }
-      } else {
-        btn.style.display = 'none';
-      }
-      updateOtherDeptButton();
+    function updateSyncButton() {
+      // マスタ同期は全員表示（常に表示なので操作不要）
+      const uploadBtn = document.getElementById('upload-master-btn');
+      if (uploadBtn) uploadBtn.style.display = isAdmin() ? 'flex' : 'none';
     }
 
-    function showMasterPasswordDialog() {
-      if (isMasterEditMode) {
-        isMasterEditMode = false;
-        updateMasterEditButton();
-        if (selectedSnippet) showEditor();
+    async function syncMaster() {
+      const btn = document.getElementById('sync-btn');
+      btn.innerHTML = '<span>🔄 更新中...</span>';
+      btn.disabled = true;
+
+      const result = await ipcRenderer.invoke('sync-master-snippets');
+
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔄 マスタ同期</span>';
+
+      if (result.success) {
+        await loadData();
+        render();
+        alert('マスタスニペットを更新しました');
+      } else {
+        alert('更新に失敗しました: ' + result.error);
+      }
+    }
+
+    async function uploadMaster() {
+      // 部署情報を取得
+      const roleResult = await ipcRenderer.invoke('get-editable-departments');
+      const depts = roleResult.userDepartments || [];
+
+      let targetDept = '';
+
+      if (depts.length === 0) {
+        alert('所属部署が設定されていません\nログアウトして再ログインしてください');
+        return;
+      } else if (depts.length === 1) {
+        // 1部署なら自動決定
+        targetDept = depts[0];
+      } else {
+        // 複数部署なら選択させる
+        targetDept = await showDepartmentSelector(depts);
+        if (!targetDept) return;
+      }
+
+      if (!confirm(`「${targetDept}」のマスタスニペットをアップロードします。\n現在のDriveファイルを上書きします。続行しますか？`)) return;
+
+      const btn = document.getElementById('upload-master-btn');
+      btn.innerHTML = '<span>⬆️ アップロード中...</span>';
+      btn.disabled = true;
+
+      // エディタ上のマスタフォルダ全体からXML生成
+      const allMasterFolderNames = [...new Set([...masterFolders, ...masterSnippets.map(s => s.folder)])];
+      const snippetsForUpload = masterSnippets.filter(s => allMasterFolderNames.includes(s.folder));
+      const xmlContent = generateSnipeeXML(snippetsForUpload);
+
+      const result = await ipcRenderer.invoke('upload-department-xml', {
+        departmentName: targetDept,
+        xmlContent: xmlContent
+      });
+
+      btn.disabled = false;
+      btn.innerHTML = '<span>⬆️ マスタ更新</span>';
+
+      if (result.success) {
+        alert('マスタスニペットをアップロードしました');
+      } else {
+        alert('アップロードに失敗しました: ' + result.error);
+      }
+    }
+
+    function showDepartmentSelector(depts) {
+      return new Promise((resolve) => {
+        // 既存のオーバーレイがあれば削除
+        const existing = document.getElementById('dept-selector-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'dept-selector-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;';
+
+        const box = document.createElement('div');
+        box.style.cssText = 'background:white;padding:24px;border-radius:12px;width:280px;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
+        box.innerHTML = `
+          <h3 style="margin:0 0 12px 0;font-size:15px;">アップロード先の部署を選択</h3>
+          <select id="dept-selector-select" style="width:100%;padding:8px;border:1px solid #d2d2d7;border-radius:6px;font-size:13px;margin-bottom:16px;">
+            ${depts.map(d => `<option value="${escapeAttr(d)}">${escapeHtml(d)}</option>`).join('')}
+          </select>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button id="dept-selector-cancel" style="padding:8px 16px;border:1px solid #d2d2d7;background:white;border-radius:6px;cursor:pointer;">キャンセル</button>
+            <button id="dept-selector-ok" style="padding:8px 16px;border:none;background:#007aff;color:white;border-radius:6px;cursor:pointer;">選択</button>
+          </div>
+        `;
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        document.getElementById('dept-selector-ok').onclick = () => {
+          const val = document.getElementById('dept-selector-select').value;
+          overlay.remove();
+          resolve(val);
+        };
+        document.getElementById('dept-selector-cancel').onclick = () => {
+          overlay.remove();
+          resolve(null);
+        };
+      });
+    }
+
+    function showFolderPanel() {
+      const editor = document.getElementById('editor-area');
+
+      if (!selectedFolder || !isAdmin()) {
+        editor.innerHTML = `
+          <div class="editor-empty">
+            <div class="editor-empty-icon">📝</div>
+            <div>スニペットを選択してください</div>
+          </div>
+        `;
         return;
       }
-      
-      isMasterEditMode = true;
-      updateMasterEditButton();
-      if (selectedSnippet) showEditor();
+
+      // マスタフォルダかどうか判定
+      const allMasterFolders = [...new Set([...masterFolders, ...masterSnippets.map(s => s.folder)])];
+      const isMasterFolder = allMasterFolders.includes(selectedFolder);
+
+      editor.innerHTML = `
+        <div class="editor-header">
+          <span class="folder-icon">📁</span>
+          <span class="editor-title">${escapeHtml(selectedFolder)}</span>
+          <span class="label-badge ${isMasterFolder ? 'master' : 'personal'}">${isMasterFolder ? 'マスタ' : '個別'}</span>
+          ${isMasterFolder
+            ? `<button onclick="demoteFolder('${escapeAttr(selectedFolder)}')" style="margin-left: auto; padding: 3px 10px; border: 1px solid #d2d2d7; border-radius: 6px; background: white; cursor: pointer; font-size: 11px;">⬇️ フォルダを個別に降格</button>`
+            : `<button onclick="promoteFolder('${escapeAttr(selectedFolder)}')" style="margin-left: auto; padding: 3px 10px; border: 1px solid #d2d2d7; border-radius: 6px; background: white; cursor: pointer; font-size: 11px;">⬆️ フォルダをマスタに昇格</button>`
+          }
+        </div>
+        <div class="editor-empty" style="flex: 1;">
+          <div class="editor-empty-icon" style="font-size: 40px;">📁</div>
+          <div style="color: #86868b; font-size: 13px;">${escapeHtml(selectedFolder)}</div>
+        </div>
+      `;
     }
+
+    // ========================================
+    // 昇格・降格
+    // ========================================
+    async function promoteFolder(folderName) {
+      const count = personalSnippets.filter(s => s.folder === folderName).length;
+      if (!confirm(`フォルダ「${folderName}」をマスタに昇格しますか？\n（${count}件のスニペットも移動されます）`)) return;
+      const result = await ipcRenderer.invoke('promote-folder', folderName);
+      if (result.success) {
+        selectedFolder = null;
+        await loadData();
+        render();
+        showEmpty();
+      } else {
+        alert('昇格に失敗しました: ' + result.error);
+      }
+    }
+
+    async function demoteFolder(folderName) {
+      const count = masterSnippets.filter(s => s.folder === folderName).length;
+      if (!confirm(`フォルダ「${folderName}」を個別に降格しますか？\n（${count}件のスニペットも移動されます）`)) return;
+      const result = await ipcRenderer.invoke('demote-folder', folderName);
+      if (result.success) {
+        selectedFolder = null;
+        await loadData();
+        render();
+        showEmpty();
+      } else {
+        alert('降格に失敗しました: ' + result.error);
+      }
+    }
+
+    async function promoteSnippet(snippetId) {
+      if (!confirm('このスニペットをマスタに昇格しますか？\n個別スニペットから削除されます。')) return;
+      const result = await ipcRenderer.invoke('promote-snippet', snippetId);
+      if (result.success) {
+        selectedSnippet = null;
+        await loadData();
+        render();
+        showEmpty();
+      } else {
+        alert('昇格に失敗しました: ' + result.error);
+      }
+    }
+
+    async function demoteSnippet(snippetId) {
+      if (!confirm('このスニペットを個別に降格しますか？\nマスタスニペットから削除されます。')) return;
+      const result = await ipcRenderer.invoke('demote-snippet', snippetId);
+      if (result.success) {
+        selectedSnippet = null;
+        await loadData();
+        render();
+        showEmpty();
+      } else {
+        alert('降格に失敗しました: ' + result.error);
+      }
+    }
+
+    
 
     // ========================================
     // インポート機能

@@ -27,8 +27,13 @@ async function parseXml(xml, department) {
   });
 
   const result = await parser.parseStringPromise(xml);
-  const foldersData = result.folders || result.FOLDERS;
+  const foldersData = result?.folders || result?.FOLDERS || result?.snippets || result?.SNIPPETS;
   const snippets = [];
+
+  if (!foldersData) {
+    console.error('[SYNC] XMLのルート要素が認識できません。実際のキー:', Object.keys(result || {}));
+    return snippets;
+  }
 
   if (foldersData && (foldersData.folder || foldersData.FOLDER)) {
     const folderArray = Array.isArray(foldersData.folder || foldersData.FOLDER)
@@ -38,11 +43,9 @@ async function parseXml(xml, department) {
     folderArray.forEach(folder => {
       const folderName = folder.title || 'Uncategorized';
 
-      const snippetArray = folder.snippets && folder.snippets.snippet
-        ? (Array.isArray(folder.snippets.snippet)
-            ? folder.snippets.snippet
-            : [folder.snippets.snippet])
-        : [];
+      // folder直下のsnippet、またはfolder.snippets.snippet の両方に対応
+      const rawSnippets = folder.snippet || (folder.snippets && folder.snippets.snippet) || [];
+      const snippetArray = Array.isArray(rawSnippets) ? rawSnippets : [rawSnippets];
 
       snippetArray.forEach(snippet => {
         const title = snippet.title || '';
@@ -68,27 +71,21 @@ async function parseXml(xml, department) {
 async function loadDepartmentSnippets() {
   try {
     const xmlDataArray = await memberManager.getAllAccessibleXml();
-    console.log('loadDepartmentSnippets: 取得した部署XML数 =', xmlDataArray.length);
-
     if (xmlDataArray.length === 0) {
-      console.log('loadDepartmentSnippets: 部署XMLがありません');
       return;
     }
 
     const allSnippets = [];
 
     for (const { department, xml } of xmlDataArray) {
-      console.log(`loadDepartmentSnippets: ${department} のXMLをパース中...`);
-
       try {
         const snippets = await parseXml(xml, department);
         allSnippets.push(...snippets);
       } catch (parseError) {
-        console.error(`loadDepartmentSnippets: ${department} のパースエラー`, parseError.message);
+        console.error(`[SYNC] ${department} パースエラー:`, parseError.message);
       }
     }
 
-    console.log('loadDepartmentSnippets: 統合スニペット数 =', allSnippets.length);
 
     const xmlFolders = [...new Set(allSnippets.map(s => s.folder))];
     store.set('masterFolders', xmlFolders);
@@ -121,7 +118,9 @@ async function fetchMasterSnippets() {
       return { error: 'アクセスが制限されています。Google Driveの共有設定で「リンクを知っている全員」に変更してください。' };
     }
 
-    if (!xmlData.includes('<folders>') && !xmlData.includes('<FOLDERS>')) {
+    const hasValidRoot = xmlData.includes('<folders>') || xmlData.includes('<FOLDERS>')
+      || xmlData.includes('<snippets>') || xmlData.includes('<SNIPPETS>');
+    if (!hasValidRoot) {
       return { error: 'XMLファイルの形式が正しくありません。Clipyのエクスポート形式を確認してください。' };
     }
 
@@ -177,10 +176,10 @@ async function syncSnippets() {
 let syncInterval = null;
 
 function startAutoSync(intervalMs = 1 * 60 * 60 * 1000) {
+  const userReportService = require('./user-report-service');
   syncInterval = setInterval(async () => {
-    console.log('部署スニペット自動同期開始...');
     await loadDepartmentSnippets();
-    console.log('部署スニペット自動同期完了');
+    await userReportService.report();
   }, intervalMs);
 }
 

@@ -1,5 +1,5 @@
 const { google } = require('googleapis');
-const googleAuth = require('./google-auth');
+const googleAuth = require('./google-auth-service');
 
 async function getSheets() {
   const client = await googleAuth.getAuthenticatedClient();

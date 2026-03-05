@@ -2,7 +2,7 @@ name: Build and Publish
 on:
   push:
     tags:
-      - "v*"
+      - "win-v*"
   workflow_dispatch:
 jobs:
   publish-windows:
@@ -24,6 +24,10 @@ jobs:
           echo "SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}" >> .env
       - name: Rebuild native modules
         run: npx @electron/rebuild
+      - name: Update version from tag
+        run: |
+          $VERSION = "${{ github.ref_name }}" -replace "^win-v", ""
+          npm version $VERSION --no-git-tag-version
       - name: Publish Windows
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}

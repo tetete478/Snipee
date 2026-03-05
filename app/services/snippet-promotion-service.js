@@ -25,12 +25,12 @@ async function uploadDepartmentXml(departmentName, xmlContent) {
 
     const result = await driveApi.uploadFile(dept.xmlFileId, xmlContent);
 
-    if (result.success) {
+    if (result) {
       await syncService.loadDepartmentSnippets();
       return { success: true };
     }
 
-    return { success: false, error: result.error || 'アップロード失敗' };
+    return { success: false, error: 'アップロード失敗' };
   } catch (error) {
     return { success: false, error: error.message };
   }
