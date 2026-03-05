@@ -33,7 +33,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           EP_DRAFT: false
         run: npx electron-builder --win --publish always
-      - name: リリース名をタグ名に変更
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: gh release edit ${{ github.ref_name }} --title "${{ github.ref_name }}" --draft=false
