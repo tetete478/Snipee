@@ -31,4 +31,6 @@ jobs:
       - name: Publish Windows
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          EP_DRAFT: false
+          EP_RELEASE_NAME: ${{ github.ref_name }}
         run: npx electron-builder --win --publish always
