@@ -32,4 +32,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           EP_DRAFT: false
-        run: npx electron-builder --win --publish always --config.publish.releaseName="${{ github.ref_name }}"
+        run: npx electron-builder --win --publish always
