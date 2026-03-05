@@ -44,7 +44,8 @@
     "publish": {
       "provider": "github",
       "owner": "tetete478",
-      "repo": "snipee"
+      "repo": "snipee",
+      "releaseType": "release"
     },
     "directories": {
       "buildResources": "build",
