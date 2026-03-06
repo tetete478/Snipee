@@ -27,7 +27,7 @@ jobs:
       - name: Update version from tag
         run: |
           $VERSION = "${{ github.ref_name }}" -replace "^win-v", ""
-          npm version $VERSION --no-git-tag-version
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.version='$VERSION'; fs.writeFileSync('package.json', JSON.stringify(p,null,2));"
       - name: Publish Windows
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
