@@ -52,29 +52,32 @@ class SyncService {
             GoogleDriveService.shared.downloadXMLFile(fileId: fileId) { result in
                 switch result {
                 case .success(let data):
-                    // 5. Parse XML
                     let parser = XMLParserHelper()
-                    let folders = parser.parse(data: data)
-                    
-                    // 6. Save as master snippets
-                    StorageService.shared.saveMasterSnippets(folders)
-                    
-                    // Update last sync date
-                    var settings = StorageService.shared.getSettings()
-                    settings.lastSyncDate = Date()
-                    StorageService.shared.saveSettings(settings)
-                    
-                    let syncResult = SyncResult(
-                        folderCount: folders.count,
-                        snippetCount: folders.reduce(0) { $0 + $1.snippets.count },
-                        syncDate: Date(),
-                        memberName: member.name,
-                        memberDepartment: member.department,
-                        memberRole: member.role
-                    )
-                    
-                    DispatchQueue.main.async {
-                        completion(.success(syncResult))
+                    switch parser.parseWithValidation(data: data) {
+                    case .failure(let parseError):
+                        DispatchQueue.main.async {
+                            completion(.failure(parseError))
+                        }
+                        return
+                    case .success(let folders):
+                        StorageService.shared.saveMasterSnippets(folders)
+
+                        var settings = StorageService.shared.getSettings()
+                        settings.lastSyncDate = Date()
+                        StorageService.shared.saveSettings(settings)
+
+                        let syncResult = SyncResult(
+                            folderCount: folders.count,
+                            snippetCount: folders.reduce(0) { $0 + $1.snippets.count },
+                            syncDate: Date(),
+                            memberName: member.name,
+                            memberDepartment: member.department,
+                            memberRole: member.role
+                        )
+
+                        DispatchQueue.main.async {
+                            completion(.success(syncResult))
+                        }
                     }
                     
                 case .failure(let error):
@@ -183,12 +186,14 @@ struct SyncResult {
 enum SyncError: Error, LocalizedError {
     case notLoggedIn
     case syncFailed
+    case emptyResult
     case detailedError(String)
     
     var errorDescription: String? {
         switch self {
         case .notLoggedIn: return "ログインしてください"
         case .syncFailed: return "同期に失敗しました"
+        case .emptyResult: return "XMLの取得結果が空でした（ローカルデータを保持）"
         case .detailedError(let message): return message
         }
     }

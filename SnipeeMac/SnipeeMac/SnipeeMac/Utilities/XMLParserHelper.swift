@@ -14,12 +14,35 @@ class XMLParserHelper: NSObject, XMLParserDelegate {
     private var currentElement: String = ""
     private var currentValue: String = ""
     
+    private var parseError: Error?
+
     func parse(data: Data) -> [SnippetFolder] {
         folders = []
+        parseError = nil
         let parser = XMLParser(data: data)
         parser.delegate = self
         parser.parse()
         return folders
+    }
+
+    func parseWithValidation(data: Data) -> Result<[SnippetFolder], Error> {
+        folders = []
+        parseError = nil
+        let parser = XMLParser(data: data)
+        parser.delegate = self
+        parser.parse()
+
+        if let error = parseError {
+            return .failure(error)
+        }
+        if folders.isEmpty {
+            return .failure(SyncError.emptyResult)
+        }
+        return .success(folders)
+    }
+
+    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
+        self.parseError = parseError
     }
     
     func parse(xmlString: String) -> [SnippetFolder] {
