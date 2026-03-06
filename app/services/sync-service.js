@@ -87,6 +87,12 @@ async function loadDepartmentSnippets() {
     }
 
 
+    // パース結果が空の場合はローカルデータを保護
+    if (allSnippets.length === 0) {
+      console.error('[SYNC] パース結果が空のためローカルデータを保持します');
+      return;
+    }
+
     const xmlFolders = [...new Set(allSnippets.map(s => s.folder))];
     store.set('masterFolders', xmlFolders);
     store.set('masterSnippets', { snippets: allSnippets });
@@ -138,8 +144,8 @@ async function syncSnippets() {
     return { success: false, error: result?.error || '同期に失敗しました' };
   }
 
-  if (!result.snippets || !Array.isArray(result.snippets)) {
-    return { success: false, error: 'スニペットデータが無効です' };
+  if (!result.snippets || !Array.isArray(result.snippets) || result.snippets.length === 0) {
+    return { success: false, error: 'スニペットデータが空または無効です（ローカルデータを保持）' };
   }
 
   const xmlSnippets = result.snippets;

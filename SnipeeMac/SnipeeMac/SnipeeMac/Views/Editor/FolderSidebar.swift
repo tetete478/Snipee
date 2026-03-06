@@ -50,7 +50,9 @@ struct InlineTextField: NSViewRepresentable {
         tf.cell?.wraps = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             tf.window?.makeFirstResponder(tf)
-            tf.currentEditor()?.selectAll(nil)
+            // カーソルを末尾に移動（全選択だと既存名が即消えるため）
+            let length = tf.stringValue.count
+            tf.currentEditor()?.selectedRange = NSRange(location: length, length: 0)
         }
         return tf
     }
@@ -1149,10 +1151,6 @@ struct FolderRow: View {
                 }
                 
                 Spacer()
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if !isEditingFolder { onToggle() }
-                    }
                 
                 if canEdit && !isEditingFolder {
                     EllipsisMenuButton(items: folderMenuItems())
